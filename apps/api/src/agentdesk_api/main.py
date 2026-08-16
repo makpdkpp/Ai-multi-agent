@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from agentdesk_api import __version__
+from agentdesk_api.api.agents import router as agents_router
 from agentdesk_api.api.auth import me_router
 from agentdesk_api.api.auth import router as auth_router
 from agentdesk_api.api.departments import router as departments_router
@@ -63,5 +64,6 @@ app.include_router(health_router)
 app.include_router(auth_router, prefix=settings.api_v1_prefix)
 app.include_router(me_router, prefix=settings.api_v1_prefix)
 app.include_router(departments_router, prefix=settings.api_v1_prefix)
+app.include_router(agents_router, prefix=settings.api_v1_prefix)
 app.include_router(usage_router, prefix=settings.api_v1_prefix)
 app.include_router(api_router, prefix=settings.api_v1_prefix)

@@ -2,8 +2,8 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { AgentManager, AgentRecord } from "@/components/agent-manager";
 import { LogoutButton } from "@/components/logout-button";
-import { DepartmentUsage, UsageDashboard, UsageSummary } from "@/components/usage-dashboard";
 
 type CurrentUser = { display_name: string; system_role: string };
 type Department = { id: string; code: string; name: string };
@@ -19,37 +19,29 @@ async function apiFetch(path: string) {
 
 async function loadPage(): Promise<{
   user: CurrentUser;
-  systemSummary: UsageSummary;
-  departments: DepartmentUsage[];
+  departments: Department[];
+  agents: AgentRecord[];
 } | null> {
-  const [meResponse, departmentsResponse, usageResponse] = await Promise.all([
+  const [meResponse, departmentsResponse] = await Promise.all([
     apiFetch("/me"),
     apiFetch("/departments"),
-    apiFetch("/system/usage/summary"),
   ]);
   if (meResponse.status === 401) return null;
   const user = (await meResponse.json()).data as CurrentUser;
   if (user.system_role !== "super_admin") redirect("/");
-  if (!departmentsResponse.ok || !usageResponse.ok) throw new Error("Unable to load usage dashboard");
+  if (!departmentsResponse.ok) throw new Error("Unable to load departments");
   const departments = (await departmentsResponse.json()).data as Department[];
-  const summaries = await Promise.all(
+  const agentGroups = await Promise.all(
     departments.map(async (department) => {
-      const response = await apiFetch(`/departments/${department.id}/usage/summary`);
-      if (!response.ok) throw new Error("Unable to load department usage");
-      return {
-        ...department,
-        summary: (await response.json()).data as UsageSummary,
-      };
+      const response = await apiFetch(`/departments/${department.id}/agents`);
+      if (!response.ok) throw new Error("Unable to load agents");
+      return (await response.json()).data as AgentRecord[];
     }),
   );
-  return {
-    user,
-    systemSummary: (await usageResponse.json()).data as UsageSummary,
-    departments: summaries,
-  };
+  return { user, departments, agents: agentGroups.flat() };
 }
 
-export default async function UsagePage() {
+export default async function AgentsPage() {
   const data = await loadPage();
   if (!data) redirect("/login");
 
@@ -61,8 +53,8 @@ export default async function UsagePage() {
         <nav aria-label="เมนูหลัก">
           <Link className="navItem" href="/">ภาพรวมระบบ</Link>
           <Link className="navItem" href="/departments">แผนกทั้งหมด</Link>
-          <Link className="navItem" href="/agents">Agents</Link>
-          <Link className="navItem active" href="/usage">Token และค่าใช้จ่าย</Link>
+          <Link className="navItem active" href="/agents">Agents</Link>
+          <Link className="navItem" href="/usage">Token และค่าใช้จ่าย</Link>
         </nav>
         <div className="sidebarFooter">
           <span className="avatar">SA</span>
@@ -71,11 +63,11 @@ export default async function UsagePage() {
       </aside>
       <section className="content">
         <header className="topbar">
-          <span>AgentDesk / <strong>Token และค่าใช้จ่าย</strong></span>
+          <span>AgentDesk / <strong>Agents</strong></span>
           <div className="topbarActions"><span className="environment">Local Pilot</span><LogoutButton /></div>
         </header>
         <div className="page">
-          <UsageDashboard systemSummary={data.systemSummary} departments={data.departments} />
+          <AgentManager departments={data.departments} initialAgents={data.agents} />
         </div>
       </section>
     </main>

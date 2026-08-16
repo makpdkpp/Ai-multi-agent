@@ -137,9 +137,50 @@ h1 { max-width: 700px; margin: 0; font-size: clamp(28px, 4vw, 42px); line-height
 .departmentStatus { display: inline-flex; padding: 5px 8px; border-radius: 999px; font-size: 11px; font-weight: 750; }
 .departmentStatus.active { color: #18774f; background: #effaf5; }
 .departmentStatus.suspended { color: #a05d13; background: #fff5e6; }
+.departmentStatus.draft { color: #58627e; background: #f0f2f7; }
+.departmentStatus.paused { color: #a05d13; background: #fff5e6; }
+.departmentStatus.disabled { color: #9b2438; background: #fff1f3; }
 .emptyState { padding: 60px 20px; text-align: center; }
 .emptyState p { color: var(--muted); }
 .mutedText { color: var(--muted); }
+.memberPanel { margin-top: 28px; }
+.memberForm { display: grid; grid-template-columns: 1.4fr 1.2fr 1fr 1.2fr auto; gap: 10px; margin-bottom: 14px; }
+.memberForm input, .memberForm select, .toolbarSelect {
+  min-width: 0;
+  border: 1px solid #dfe2ea;
+  border-radius: 8px;
+  padding: 10px 11px;
+  background: white;
+  font: inherit;
+  font-size: 13px;
+}
+.toolbarSelect { min-width: 220px; }
+.agentForm {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 18px;
+  padding: 18px;
+  border: 1px solid #dfe3f2;
+  border-radius: 12px;
+  background: white;
+}
+.agentFormGrid { display: grid; grid-template-columns: 1fr 1.4fr .8fr 1.2fr .8fr .8fr; gap: 12px; }
+.agentForm label { display: grid; gap: 7px; color: #52586b; font-size: 12px; font-weight: 700; }
+.agentForm input, .agentForm select, .agentForm textarea {
+  min-width: 0;
+  width: 100%;
+  border: 1px solid #dfe2ea;
+  border-radius: 8px;
+  padding: 10px 11px;
+  background: white;
+  font: inherit;
+}
+.agentForm textarea { resize: vertical; line-height: 1.6; }
+.agentToggles { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; }
+.agentToggles label { display: inline-flex; grid-template-columns: none; align-items: center; gap: 7px; }
+.agentToggles input[type="checkbox"] { width: 14px; height: 14px; padding: 0; }
+.agentToggles input[type="number"] { width: 86px; }
+.formActions { display: flex; gap: 10px; }
 .usageHero { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 14px; margin-bottom: 18px; }
 .usageHero article { padding: 20px; border: 1px solid var(--line); border-radius: 11px; background: white; }
 .usageHero span, .usageHero small { display: block; color: var(--muted); font-size: 12px; }
@@ -153,6 +194,7 @@ h1 { max-width: 700px; margin: 0; font-size: clamp(28px, 4vw, 42px); line-height
 @media (max-width: 1000px) {
   .serviceGrid { grid-template-columns: repeat(2, 1fr); }
   .departmentForm { grid-template-columns: repeat(2, 1fr); }
+  .memberForm, .agentFormGrid { grid-template-columns: repeat(2, 1fr); }
   .usageHero { grid-template-columns: 1fr; }
 }
 @media (max-width: 720px) {
@@ -170,5 +212,6 @@ h1 { max-width: 700px; margin: 0; font-size: clamp(28px, 4vw, 42px); line-height
   .loginPanel { min-height: 100vh; }
   .loginAside { display: none; }
   .departmentToolbar { display: grid; }
-  .departmentSummary, .departmentForm { grid-template-columns: 1fr; }
+  .departmentSummary, .departmentForm, .memberForm, .agentFormGrid { grid-template-columns: 1fr; }
+  .toolbarSelect { width: 100%; }
 }

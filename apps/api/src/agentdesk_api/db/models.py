@@ -102,6 +102,7 @@ class Department(TimestampMixin, Base):
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     memberships: Mapped[list[DepartmentMembership]] = relationship(back_populates="department")
+    agents: Mapped[list[Agent]] = relationship(back_populates="department")
 
 
 class DepartmentMembership(TimestampMixin, Base):
@@ -152,6 +153,81 @@ class LlmModel(Base):
 
     provider: Mapped[LlmProvider] = relationship(back_populates="models")
     pricing_versions: Mapped[list[ModelPricingVersion]] = relationship(back_populates="model")
+
+
+class Agent(TimestampMixin, Base):
+    __tablename__ = "agents"
+    __table_args__ = (
+        UniqueConstraint("department_id", "slug", name="uq_agents_department_slug"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    department_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("departments.id", ondelete="CASCADE")
+    )
+    slug: Mapped[str] = mapped_column(String(80))
+    name: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str | None] = mapped_column(Text())
+    status: Mapped[str] = mapped_column(String(20), default="draft")
+    default_language: Mapped[str] = mapped_column(String(10), default="th")
+    handoff_enabled: Mapped[bool] = mapped_column(Boolean(), default=True)
+    confidence_threshold: Mapped[Decimal] = mapped_column(Numeric(5, 4), default=Decimal("0.6000"))
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    department: Mapped[Department] = relationship(back_populates="agents")
+    prompt_versions: Mapped[list[AgentPromptVersion]] = relationship(back_populates="agent")
+    permissions: Mapped[list[AgentPermission]] = relationship(back_populates="agent")
+    llm_configs: Mapped[list[AgentLlmConfig]] = relationship(back_populates="agent")
+
+
+class AgentPromptVersion(Base):
+    __tablename__ = "agent_prompt_versions"
+    __table_args__ = (
+        UniqueConstraint("agent_id", "version", name="uq_agent_prompt_versions_agent_version"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    agent_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("agents.id", ondelete="CASCADE"))
+    version: Mapped[int] = mapped_column(Integer(), default=1)
+    system_prompt: Mapped[str] = mapped_column(Text())
+    response_style: Mapped[str | None] = mapped_column(Text())
+    is_active: Mapped[bool] = mapped_column(Boolean(), default=True)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    agent: Mapped[Agent] = relationship(back_populates="prompt_versions")
+
+
+class AgentPermission(TimestampMixin, Base):
+    __tablename__ = "agent_permissions"
+    __table_args__ = (
+        UniqueConstraint("agent_id", "channel", name="uq_agent_permissions_agent_channel"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    agent_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("agents.id", ondelete="CASCADE"))
+    channel: Mapped[str] = mapped_column(String(30))
+    enabled: Mapped[bool] = mapped_column(Boolean(), default=True)
+    allow_anonymous: Mapped[bool] = mapped_column(Boolean(), default=False)
+
+    agent: Mapped[Agent] = relationship(back_populates="permissions")
+
+
+class AgentLlmConfig(TimestampMixin, Base):
+    __tablename__ = "agent_llm_configs"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    agent_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("agents.id", ondelete="CASCADE"))
+    provider_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("llm_providers.id"))
+    model_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("llm_models.id"))
+    model_key: Mapped[str] = mapped_column(String(200))
+    temperature: Mapped[Decimal] = mapped_column(Numeric(4, 2), default=Decimal("0.20"))
+    top_p: Mapped[Decimal] = mapped_column(Numeric(4, 2), default=Decimal("1.00"))
+    max_output_tokens: Mapped[int] = mapped_column(Integer(), default=1024)
+    status: Mapped[str] = mapped_column(String(20), default="active")
+
+    agent: Mapped[Agent] = relationship(back_populates="llm_configs")
 
 
 class ModelPricingVersion(Base):

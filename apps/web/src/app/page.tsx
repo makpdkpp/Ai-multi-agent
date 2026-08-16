@@ -28,6 +28,7 @@ export default async function Home() {
         <nav aria-label="เมนูหลัก">
           <a className="navItem active" href="#overview">ภาพรวมระบบ</a>
           {user.system_role === "super_admin" && <a className="navItem" href="/departments">แผนกทั้งหมด</a>}
+          {user.system_role === "super_admin" && <a className="navItem" href="/agents">Agents</a>}
           {user.system_role === "super_admin" && <a className="navItem" href="/usage">Token และค่าใช้จ่าย</a>}
           <a className="navItem" href="#services">สถานะ Services</a>
           <a className="navItem" href="#roadmap">ลำดับการพัฒนา</a>
