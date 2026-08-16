@@ -10,7 +10,7 @@ from agentdesk_api.api.agents import (
     ChannelPermissionPayload,
     estimate_input_tokens,
 )
-from agentdesk_api.api.departments import DepartmentMemberCreate
+from agentdesk_api.api.departments import DepartmentMemberCreate, DepartmentMemberUpdate
 
 
 def test_agent_create_normalizes_slug_and_requires_internal_chat() -> None:
@@ -90,3 +90,15 @@ def test_department_member_normalizes_email_and_name() -> None:
 
     assert member.email == "user@company.local"
     assert member.display_name == "คุณเมธา"
+
+
+def test_department_member_accepts_department_admin_role_and_suspended_status() -> None:
+    member = DepartmentMemberCreate(
+        email="admin-dept@company.local",
+        display_name="Department Admin",
+        role="department_admin",
+    )
+    update = DepartmentMemberUpdate(status="suspended")
+
+    assert member.role == "department_admin"
+    assert update.status == "suspended"

@@ -142,7 +142,7 @@ async def require_department_admin(
             DepartmentMembership.department_id == department_id,
             DepartmentMembership.user_id == auth.user_id,
             DepartmentMembership.status == "active",
-            DepartmentMembership.role.in_(("owner", "admin")),
+            DepartmentMembership.role.in_(("department_admin", "agent_manager")),
         )
     )
     if membership is None:

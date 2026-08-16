@@ -161,6 +161,19 @@ def member_data(membership: DepartmentMembership, user: User) -> dict[str, objec
     ).model_dump(mode="json")
 
 
+def membership_conflict_detail(exc: IntegrityError) -> str:
+    constraint_name = getattr(getattr(exc, "orig", None), "constraint_name", "")
+    if constraint_name == "uq_membership_department_user":
+        return "User is already a member of this department."
+    if "role" in constraint_name:
+        return "Invalid department member role."
+    if "status" in constraint_name:
+        return "Invalid department member status."
+    if constraint_name == "uq_users_email":
+        return "A user with this email already exists."
+    return "Unable to create department member."
+
+
 @router.get("")
 async def list_departments(auth: SuperAdminDependency, session: DbSession) -> dict[str, object]:
     await set_super_admin_context(session, auth.system_role)
@@ -341,7 +354,7 @@ async def create_department_member(
         await session.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="User is already a member of this department.",
+            detail=membership_conflict_detail(exc),
         ) from exc
     return {"data": response_data}
 
