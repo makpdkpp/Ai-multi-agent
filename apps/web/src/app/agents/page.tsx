@@ -73,6 +73,7 @@ export default async function AgentsPage() {
           <Link className="navItem" href="/">ภาพรวมระบบ</Link>
           {data.user.system_role === "super_admin" && <Link className="navItem" href="/departments">แผนกทั้งหมด</Link>}
           <Link className="navItem active" href="/agents">Agents</Link>
+          <Link className="navItem" href="/data-sources">Data Sources</Link>
           <Link className="navItem" href="/chat">Internal Chat</Link>
           {data.user.system_role === "super_admin" && <Link className="navItem" href="/usage">Token และค่าใช้จ่าย</Link>}
           {data.user.system_role === "super_admin" && <Link className="navItem" href="/settings/openrouter">ตั้งค่า OpenRouter</Link>}

@@ -106,6 +106,7 @@ h1 { max-width: 700px; margin: 0; font-size: clamp(28px, 4vw, 42px); line-height
 .loginPanel form button { margin-top: 4px; border: 0; border-radius: 9px; padding: 13px; color: white; background: var(--primary); font: inherit; font-weight: 750; cursor: pointer; }
 .loginPanel form button:disabled { opacity: .6; cursor: wait; }
 .formError { margin: 0; padding: 10px 12px; border-radius: 8px; color: #b22940; background: #fff1f3; font-size: 12px; }
+.formSuccess { margin: 0; padding: 10px 12px; border-radius: 8px; color: #18774f; background: #effaf5; font-size: 12px; }
 .loginAside { display: flex; flex-direction: column; justify-content: flex-end; min-height: 100vh; padding: 70px; color: white; background: radial-gradient(circle at 80% 20%, #536fff 0, transparent 34%), linear-gradient(145deg, #141828, #263bb9); }
 .loginAside p { margin: 0 0 12px; color: #bfc8ff; font-size: 12px; font-weight: 800; letter-spacing: 1.5px; }
 .loginAside h2 { margin: 0 0 18px; font-size: clamp(30px, 4vw, 56px); line-height: 1.25; letter-spacing: -1.4px; }
@@ -194,6 +195,30 @@ h1 { max-width: 700px; margin: 0; font-size: clamp(28px, 4vw, 42px); line-height
   font: inherit;
   line-height: 1.7;
 }
+.dataSourceAttachBar {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: white;
+}
+.dataSourceAttachBar label { display: grid; gap: 7px; min-width: min(420px, 100%); color: #52586b; font-size: 12px; font-weight: 700; }
+.dataSourceAttachBar select { border: 1px solid #dfe2ea; border-radius: 8px; padding: 10px 11px; background: white; font: inherit; }
+.dataSourceAttachBar strong { font-size: 24px; }
+.dataSourceAttachBar span { color: var(--muted); font-size: 12px; }
+.dataSourceGrid { display: grid; gap: 14px; }
+.dataSourceCard { border: 1px solid var(--line); border-radius: 12px; padding: 18px; background: white; }
+.dataSourceHeader { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; margin-bottom: 14px; }
+.dataSourceHeader h2 { margin: 8px 0 4px; font-size: 20px; }
+.dataSourceHeader p { margin: 0; color: var(--muted); font-size: 12px; }
+.sheetPreviewList { display: grid; gap: 10px; }
+.sheetPreviewList details { border: 1px solid #edf0f6; border-radius: 10px; padding: 12px; background: #fbfcff; }
+.sheetPreviewList summary { cursor: pointer; font-size: 13px; font-weight: 800; }
+.previewTableWrap { overflow-x: auto; margin-top: 10px; border: 1px solid var(--line); border-radius: 10px; background: white; }
 .providerBadge {
   display: inline-flex;
   align-items: center;

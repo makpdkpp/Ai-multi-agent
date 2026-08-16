@@ -40,6 +40,7 @@ from agentdesk_api.db.models import (
     DepartmentMembership,
     LlmUsageEvent,
 )
+from agentdesk_api.source_context import build_agent_data_source_context
 
 router = APIRouter(tags=["agents"])
 _slug_pattern = re.compile(r"^[a-z][a-z0-9-]{1,79}$")
@@ -718,8 +719,12 @@ async def invoke_agent(
         )
 
     prompt = active_prompt(agent)
+    data_source_context = await build_agent_data_source_context(session, settings, agent)
+    system_prompt = prompt.system_prompt
+    if data_source_context:
+        system_prompt = f"{system_prompt}\n\n{data_source_context}"
     config = active_llm_config(agent)
-    estimated_input = estimate_input_tokens(prompt.system_prompt, payload.messages)
+    estimated_input = estimate_input_tokens(system_prompt, payload.messages)
     estimate_payload = UsageEventPayload(
         department_id=agent.department_id,
         usage_type="answer_synthesis",
@@ -743,7 +748,7 @@ async def invoke_agent(
     request_trace_id = uuid4()
     started_at = datetime.now(UTC)
     openrouter_messages = [
-        {"role": "system", "content": prompt.system_prompt},
+        {"role": "system", "content": system_prompt},
         *[message.model_dump() for message in payload.messages],
     ]
     try:

@@ -180,6 +180,7 @@ class Agent(TimestampMixin, Base):
     permissions: Mapped[list[AgentPermission]] = relationship(back_populates="agent")
     llm_configs: Mapped[list[AgentLlmConfig]] = relationship(back_populates="agent")
     chat_conversations: Mapped[list[ChatConversation]] = relationship(back_populates="agent")
+    data_source_links: Mapped[list[AgentDataSource]] = relationship(back_populates="agent")
 
 
 class AgentPromptVersion(Base):
@@ -238,6 +239,76 @@ class AgentLlmConfig(TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(20), default="active")
 
     agent: Mapped[Agent] = relationship(back_populates="llm_configs")
+
+
+class DataSource(TimestampMixin, Base):
+    __tablename__ = "data_sources"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    department_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("departments.id", ondelete="CASCADE")
+    )
+    name: Mapped[str] = mapped_column(String(200))
+    source_type: Mapped[str] = mapped_column(String(20))
+    status: Mapped[str] = mapped_column(String(20), default="draft")
+    secret_ref: Mapped[str | None] = mapped_column(Text())
+    connection_config: Mapped[dict[str, object]] = mapped_column(JSONB(), default=dict)
+    allowed_schema: Mapped[dict[str, object]] = mapped_column(JSONB(), default=dict)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    files: Mapped[list[SourceFile]] = relationship(back_populates="data_source")
+    agent_links: Mapped[list[AgentDataSource]] = relationship(back_populates="data_source")
+
+
+class SourceFile(Base):
+    __tablename__ = "source_files"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    department_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("departments.id", ondelete="CASCADE")
+    )
+    data_source_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("data_sources.id", ondelete="CASCADE")
+    )
+    object_key: Mapped[str] = mapped_column(Text())
+    original_name: Mapped[str] = mapped_column(Text())
+    mime_type: Mapped[str] = mapped_column(String(100))
+    size_bytes: Mapped[int] = mapped_column(BigInteger())
+    sha256: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(20), default="uploaded")
+    version: Mapped[int] = mapped_column(Integer(), default=1)
+    file_metadata: Mapped[dict[str, object]] = mapped_column("metadata", JSONB(), default=dict)
+    processing_error: Mapped[str | None] = mapped_column(Text())
+    uploaded_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    indexed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    data_source: Mapped[DataSource] = relationship(back_populates="files")
+
+
+class AgentDataSource(Base):
+    __tablename__ = "agent_data_sources"
+    __table_args__ = (
+        UniqueConstraint("agent_id", "data_source_id", name="uq_agent_data_sources_agent_source"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    department_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("departments.id", ondelete="CASCADE")
+    )
+    agent_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("agents.id", ondelete="CASCADE"))
+    data_source_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("data_sources.id", ondelete="CASCADE")
+    )
+    access_scope: Mapped[str] = mapped_column(String(20), default="internal_only")
+    priority: Mapped[int] = mapped_column(Integer(), default=100)
+    enabled: Mapped[bool] = mapped_column(Boolean(), default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    agent: Mapped[Agent] = relationship(back_populates="data_source_links")
+    data_source: Mapped[DataSource] = relationship(back_populates="agent_links")
 
 
 class ChatConversation(TimestampMixin, Base):
