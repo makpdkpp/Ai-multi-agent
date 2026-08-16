@@ -208,7 +208,7 @@ async def send_message(
 ) -> dict[str, object]:
     await set_auth_context(session, auth)
     conversation = await get_conversation_or_404(conversation_id, session)
-    agent = conversation.agent or await get_agent_or_404(conversation.agent_id, session)
+    agent = await get_agent_or_404(conversation.agent_id, session)
     await set_agent_department_context(session, auth, agent)
     await require_agent_member_access(agent, auth, session)
     if conversation.status != "active":
