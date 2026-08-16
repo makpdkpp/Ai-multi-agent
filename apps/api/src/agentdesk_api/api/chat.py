@@ -30,7 +30,7 @@ from agentdesk_api.api.agents import (
 )
 from agentdesk_api.api.auth import AppSettings, AuthDependency, CsrfDependency, DbSession
 from agentdesk_api.db.models import ChatConversation, ChatMessage, LlmUsageEvent
-from agentdesk_api.source_context import build_agent_data_source_context
+from agentdesk_api.source_context import build_agent_data_source_context, build_runtime_context
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -310,8 +310,8 @@ async def send_message(
     history_messages.append(AgentInvokeMessage(role="user", content=payload.content))
 
     prompt = active_prompt(agent)
+    system_prompt = f"{prompt.system_prompt}\n\n{build_runtime_context(settings)}"
     data_source_context = await build_agent_data_source_context(session, settings, agent)
-    system_prompt = prompt.system_prompt
     if data_source_context:
         system_prompt = f"{system_prompt}\n\n{data_source_context}"
     config = active_llm_config(agent)

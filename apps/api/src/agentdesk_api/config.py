@@ -17,6 +17,7 @@ class Settings(BaseSettings):
         min_length=32,
     )
     api_v1_prefix: str = "/api/v1"
+    app_timezone: str = "Asia/Bangkok"
     database_url: str = "postgresql+asyncpg://agentdesk_app:change-me-app@localhost:5432/agentdesk"
     redis_url: str = "redis://:change-me-redis@localhost:6379/0"
     s3_endpoint_url: str = "http://localhost:9000"

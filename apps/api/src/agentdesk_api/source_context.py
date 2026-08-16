@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from io import BytesIO, StringIO
 from pathlib import PurePosixPath
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import boto3
 from openpyxl import load_workbook
@@ -19,6 +20,26 @@ MAX_CONTEXT_CHARS = 18000
 MAX_ROWS_PER_SHEET = 80
 MAX_COLUMNS_PER_SHEET = 30
 MAX_ATTACHED_SOURCES = 5
+
+
+def build_runtime_context(settings: Settings) -> str:
+    try:
+        timezone = ZoneInfo(settings.app_timezone)
+        timezone_name = settings.app_timezone
+    except ZoneInfoNotFoundError:
+        timezone = UTC
+        timezone_name = "UTC"
+    now_utc = datetime.now(UTC)
+    now_local = now_utc.astimezone(timezone)
+    return (
+        "Runtime context:\n"
+        f"- Current date: {now_local.date().isoformat()}\n"
+        f"- Current time: {now_local.strftime('%H:%M:%S')}\n"
+        f"- Timezone: {timezone_name}\n"
+        f"- Current UTC datetime: {now_utc.isoformat()}\n"
+        "Use this as the current date/time for questions involving today, now, "
+        "remaining days, expiry dates, warranty periods, or relative dates."
+    )
 
 
 def _s3_client(settings: Settings):
