@@ -34,6 +34,7 @@ export default async function Home() {
           <a className="navItem active" href="#overview">ภาพรวมระบบ</a>
           {user.system_role === "super_admin" && <a className="navItem" href="/departments">แผนกทั้งหมด</a>}
           {(user.system_role === "super_admin" || user.memberships.length > 0) && <a className="navItem" href="/agents">Agents</a>}
+          {(user.system_role === "super_admin" || user.memberships.length > 0) && <a className="navItem" href="/chat">Internal Chat</a>}
           {user.system_role === "super_admin" && <a className="navItem" href="/usage">Token และค่าใช้จ่าย</a>}
           {user.system_role === "super_admin" && <a className="navItem" href="/settings/openrouter">ตั้งค่า OpenRouter</a>}
           <a className="navItem" href="#services">สถานะ Services</a>

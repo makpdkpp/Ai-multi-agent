@@ -50,6 +50,7 @@ export default async function OpenRouterSettingsPage() {
           <Link className="navItem" href="/">ภาพรวมระบบ</Link>
           <Link className="navItem" href="/departments">แผนกทั้งหมด</Link>
           <Link className="navItem" href="/agents">Agents</Link>
+          <Link className="navItem" href="/chat">Internal Chat</Link>
           <Link className="navItem" href="/usage">Token และค่าใช้จ่าย</Link>
           <Link className="navItem active" href="/settings/openrouter">ตั้งค่า OpenRouter</Link>
         </nav>

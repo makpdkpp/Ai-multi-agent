@@ -11,6 +11,7 @@ from agentdesk_api import __version__
 from agentdesk_api.api.agents import router as agents_router
 from agentdesk_api.api.auth import me_router
 from agentdesk_api.api.auth import router as auth_router
+from agentdesk_api.api.chat import router as chat_router
 from agentdesk_api.api.departments import router as departments_router
 from agentdesk_api.api.health import router as health_router
 from agentdesk_api.api.router import router as api_router
@@ -66,6 +67,7 @@ app.include_router(auth_router, prefix=settings.api_v1_prefix)
 app.include_router(me_router, prefix=settings.api_v1_prefix)
 app.include_router(departments_router, prefix=settings.api_v1_prefix)
 app.include_router(agents_router, prefix=settings.api_v1_prefix)
+app.include_router(chat_router, prefix=settings.api_v1_prefix)
 app.include_router(settings_router, prefix=settings.api_v1_prefix)
 app.include_router(usage_router, prefix=settings.api_v1_prefix)
 app.include_router(api_router, prefix=settings.api_v1_prefix)

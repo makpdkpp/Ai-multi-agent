@@ -179,6 +179,7 @@ class Agent(TimestampMixin, Base):
     prompt_versions: Mapped[list[AgentPromptVersion]] = relationship(back_populates="agent")
     permissions: Mapped[list[AgentPermission]] = relationship(back_populates="agent")
     llm_configs: Mapped[list[AgentLlmConfig]] = relationship(back_populates="agent")
+    chat_conversations: Mapped[list[ChatConversation]] = relationship(back_populates="agent")
 
 
 class AgentPromptVersion(Base):
@@ -237,6 +238,43 @@ class AgentLlmConfig(TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(20), default="active")
 
     agent: Mapped[Agent] = relationship(back_populates="llm_configs")
+
+
+class ChatConversation(TimestampMixin, Base):
+    __tablename__ = "chat_conversations"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    department_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("departments.id", ondelete="CASCADE")
+    )
+    agent_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("agents.id", ondelete="CASCADE"))
+    created_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
+    title: Mapped[str] = mapped_column(String(200), default="New chat")
+    status: Mapped[str] = mapped_column(String(20), default="active")
+    last_message_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    agent: Mapped[Agent] = relationship(back_populates="chat_conversations")
+    messages: Mapped[list[ChatMessage]] = relationship(back_populates="conversation")
+
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    conversation_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("chat_conversations.id", ondelete="CASCADE")
+    )
+    department_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("departments.id", ondelete="CASCADE")
+    )
+    agent_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("agents.id", ondelete="CASCADE"))
+    sender_type: Mapped[str] = mapped_column(String(20))
+    sender_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    content: Mapped[str] = mapped_column(Text())
+    usage_event_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("llm_usage_events.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    conversation: Mapped[ChatConversation] = relationship(back_populates="messages")
 
 
 class ModelPricingVersion(Base):

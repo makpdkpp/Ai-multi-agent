@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { AgentManager, AgentRecord } from "@/components/agent-manager";
+import { ChatWorkspace } from "@/components/chat-workspace";
 import { LogoutButton } from "@/components/logout-button";
 
 type CurrentUser = {
@@ -16,6 +16,29 @@ type CurrentUser = {
   }>;
 };
 type Department = { id: string; code: string; name: string };
+type AgentRecord = {
+  id: string;
+  department_id: string;
+  name: string;
+  slug: string;
+  status: string;
+};
+type Conversation = {
+  id: string;
+  department_id: string;
+  agent_id: string;
+  agent_name: string | null;
+  title: string;
+  last_message_at: string | null;
+  usage: {
+    input_tokens: number;
+    output_tokens: number;
+    requests: number;
+    display_cost_usd: string;
+    display_cost_thb: string;
+  };
+};
+
 const apiUrl = process.env.API_INTERNAL_URL ?? "http://localhost:8000/api/v1";
 
 async function apiFetch(path: string) {
@@ -30,13 +53,14 @@ async function loadPage(): Promise<{
   user: CurrentUser;
   departments: Department[];
   agents: AgentRecord[];
-  canManageAgents: boolean;
+  conversations: Conversation[];
 } | null> {
   const meResponse = await apiFetch("/me");
   if (meResponse.status === 401) return null;
   const user = (await meResponse.json()).data as CurrentUser;
   const activeMemberships = user.memberships.filter((membership) => membership.status === "active");
   if (user.system_role !== "super_admin" && activeMemberships.length === 0) redirect("/");
+
   const departments = user.system_role === "super_admin"
     ? await (async () => {
         const response = await apiFetch("/departments");
@@ -48,6 +72,7 @@ async function loadPage(): Promise<{
         code: membership.department_id,
         name: membership.department_name,
       }));
+
   const agentGroups = await Promise.all(
     departments.map(async (department) => {
       const response = await apiFetch(`/departments/${department.id}/agents`);
@@ -55,12 +80,18 @@ async function loadPage(): Promise<{
       return (await response.json()).data as AgentRecord[];
     }),
   );
-  const canManageAgents = user.system_role === "super_admin"
-    || activeMemberships.some((membership) => ["department_admin", "agent_manager"].includes(membership.role));
-  return { user, departments, agents: agentGroups.flat(), canManageAgents };
+  const conversationsResponse = await apiFetch("/chat/conversations");
+  if (!conversationsResponse.ok) throw new Error("Unable to load conversations");
+
+  return {
+    user,
+    departments,
+    agents: agentGroups.flat(),
+    conversations: (await conversationsResponse.json()).data as Conversation[],
+  };
 }
 
-export default async function AgentsPage() {
+export default async function ChatPage() {
   const data = await loadPage();
   if (!data) redirect("/login");
 
@@ -72,26 +103,26 @@ export default async function AgentsPage() {
         <nav aria-label="เมนูหลัก">
           <Link className="navItem" href="/">ภาพรวมระบบ</Link>
           {data.user.system_role === "super_admin" && <Link className="navItem" href="/departments">แผนกทั้งหมด</Link>}
-          <Link className="navItem active" href="/agents">Agents</Link>
-          <Link className="navItem" href="/chat">Internal Chat</Link>
+          <Link className="navItem" href="/agents">Agents</Link>
+          <Link className="navItem active" href="/chat">Internal Chat</Link>
           {data.user.system_role === "super_admin" && <Link className="navItem" href="/usage">Token และค่าใช้จ่าย</Link>}
           {data.user.system_role === "super_admin" && <Link className="navItem" href="/settings/openrouter">ตั้งค่า OpenRouter</Link>}
         </nav>
         <div className="sidebarFooter">
-          <span className="avatar">{data.user.system_role === "super_admin" ? "SA" : "DA"}</span>
-          <div><strong>{data.user.display_name}</strong><small>{data.user.system_role === "super_admin" ? "Super Admin" : "Department User"}</small></div>
+          <span className="avatar">{data.user.system_role === "super_admin" ? "SA" : "DU"}</span>
+          <div><strong>{data.user.display_name}</strong><small>Internal Chat</small></div>
         </div>
       </aside>
       <section className="content">
         <header className="topbar">
-          <span>AgentDesk / <strong>Agents</strong></span>
+          <span>AgentDesk / <strong>Internal Chat</strong></span>
           <div className="topbarActions"><span className="environment">Local Pilot</span><LogoutButton /></div>
         </header>
         <div className="page">
-          <AgentManager
+          <ChatWorkspace
             departments={data.departments}
-            initialAgents={data.agents}
-            canManageAgents={data.canManageAgents}
+            agents={data.agents}
+            initialConversations={data.conversations}
           />
         </div>
       </section>
