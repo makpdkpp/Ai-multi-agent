@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, KeyboardEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type Department = { id: string; code: string; name: string };
@@ -137,8 +137,8 @@ export function ChatWorkspace({
     return body.data as Conversation;
   }
 
-  async function sendMessage(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function submitDraft() {
+    if (busy) return;
     const content = draft.trim();
     if (!content) return;
     setBusy(true);
@@ -170,6 +170,17 @@ export function ChatWorkspace({
       setError(typeof detail === "string" ? detail : detail?.message ?? "ส่งข้อความไม่สำเร็จ");
     }
     setBusy(false);
+  }
+
+  async function sendMessage(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await submitDraft();
+  }
+
+  function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
+    event.preventDefault();
+    submitDraft();
   }
 
   return (
@@ -262,6 +273,7 @@ export function ChatWorkspace({
           <textarea
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={handleComposerKeyDown}
             placeholder="พิมพ์ข้อความถึง Agent..."
             rows={3}
             disabled={busy}
