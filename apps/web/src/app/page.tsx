@@ -1,3 +1,8 @@
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+
+import { LogoutButton } from "@/components/logout-button";
+
 const services = [
   { name: "API", detail: "FastAPI orchestration", state: "พร้อมเชื่อมต่อ" },
   { name: "PostgreSQL", detail: "Metadata + pgvector", state: "ตั้งค่าแล้ว" },
@@ -28,7 +33,7 @@ export default async function Home() {
         <nav aria-label="เมนูหลัก">
           <a className="navItem active" href="#overview">ภาพรวมระบบ</a>
           {user.system_role === "super_admin" && <a className="navItem" href="/departments">แผนกทั้งหมด</a>}
-          {user.system_role === "super_admin" && <a className="navItem" href="/agents">Agents</a>}
+          {(user.system_role === "super_admin" || user.memberships.length > 0) && <a className="navItem" href="/agents">Agents</a>}
           {user.system_role === "super_admin" && <a className="navItem" href="/usage">Token และค่าใช้จ่าย</a>}
           {user.system_role === "super_admin" && <a className="navItem" href="/settings/openrouter">ตั้งค่า OpenRouter</a>}
           <a className="navItem" href="#services">สถานะ Services</a>
@@ -108,14 +113,16 @@ export default async function Home() {
     </main>
   );
 }
-import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
-
-import { LogoutButton } from "@/components/logout-button";
 
 type CurrentUser = {
   display_name: string;
   system_role: string;
+  memberships: Array<{
+    department_id: string;
+    department_name: string;
+    role: string;
+    status: string;
+  }>;
 };
 
 async function getCurrentUser(): Promise<CurrentUser | null> {

@@ -53,9 +53,11 @@ function channelEnabled(agent: AgentRecord, channel: AgentPermission["channel"])
 export function AgentManager({
   departments,
   initialAgents,
+  canManageAgents = true,
 }: {
   departments: Department[];
   initialAgents: AgentRecord[];
+  canManageAgents?: boolean;
 }) {
   const router = useRouter();
   const [agents, setAgents] = useState(initialAgents);
@@ -206,7 +208,7 @@ export function AgentManager({
 
       {error && <p className="formError" role="alert">{error}</p>}
 
-      <form className="agentForm" key={editingAgent?.id ?? "new-agent"} onSubmit={saveAgent}>
+      {canManageAgents && <form className="agentForm" key={editingAgent?.id ?? "new-agent"} onSubmit={saveAgent}>
         <div className="agentFormGrid">
           <label>
             Slug
@@ -281,7 +283,7 @@ export function AgentManager({
           </button>
           {editingAgent && <button className="secondaryButton" type="button" onClick={() => resetForm()}>ยกเลิกแก้ไข</button>}
         </div>
-      </form>
+      </form>}
 
       <section className="departmentTableWrap">
         {selectedAgents.length === 0 ? (
@@ -299,7 +301,7 @@ export function AgentManager({
                 <td>{agent.handoff_enabled ? `เปิด · ${Number(agent.confidence_threshold).toFixed(2)}` : "ปิด"}</td>
                 <td><span className={`departmentStatus ${agent.status}`}>{agent.status}</span></td>
                 <td className="departmentActions">
-                  <button className="secondaryButton" type="button" onClick={() => openEdit(agent)}>แก้ไข</button>
+                  {canManageAgents && <button className="secondaryButton" type="button" onClick={() => openEdit(agent)}>แก้ไข</button>}
                   <button className="secondaryButton" type="button" onClick={() => {
                     setTestingAgent(agent);
                     setTestAnswer("");
@@ -307,9 +309,9 @@ export function AgentManager({
                   }}>
                     ทดสอบ
                   </button>
-                  <button className="secondaryButton" type="button" disabled={busy === agent.id} onClick={() => changeStatus(agent, agent.status === "active" ? "paused" : "active")}>
+                  {canManageAgents && <button className="secondaryButton" type="button" disabled={busy === agent.id} onClick={() => changeStatus(agent, agent.status === "active" ? "paused" : "active")}>
                     {agent.status === "active" ? "พัก" : "เปิดใช้"}
-                  </button>
+                  </button>}
                 </td>
               </tr>
             ))}</tbody>

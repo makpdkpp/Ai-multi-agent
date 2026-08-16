@@ -263,6 +263,7 @@ async def me(
                     "department_id": str(department.id),
                     "department_name": department.name,
                     "role": membership.role,
+                    "status": membership.status,
                 }
                 for membership, department in memberships.all()
             ],

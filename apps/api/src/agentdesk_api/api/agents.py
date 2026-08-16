@@ -20,7 +20,6 @@ from agentdesk_api.api.auth import (
     AuthDependency,
     CsrfDependency,
     DbSession,
-    SuperAdminDependency,
 )
 from agentdesk_api.api.departments import get_department_or_404
 from agentdesk_api.api.usage import (
@@ -354,6 +353,59 @@ async def require_agent_member_access(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent not found.")
 
 
+async def require_department_member_access(
+    department_id: UUID,
+    auth: AuthContext,
+    session: AsyncSession,
+) -> None:
+    await session.execute(
+        text("SELECT set_config('app.system_role', :role, true)"),
+        {"role": auth.system_role},
+    )
+    await session.execute(
+        text("SELECT set_config('app.user_id', :user_id, true)"),
+        {"user_id": str(auth.user_id)},
+    )
+    await session.execute(
+        text("SELECT set_config('app.department_id', :department_id, true)"),
+        {"department_id": str(department_id)},
+    )
+    if auth.system_role == "super_admin":
+        return
+    membership = await session.scalar(
+        select(DepartmentMembership).where(
+            DepartmentMembership.department_id == department_id,
+            DepartmentMembership.user_id == auth.user_id,
+            DepartmentMembership.status == "active",
+        )
+    )
+    if membership is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Department not found.")
+
+
+async def require_department_agent_manager_access(
+    department_id: UUID,
+    auth: AuthContext,
+    session: AsyncSession,
+) -> None:
+    await require_department_member_access(department_id, auth, session)
+    if auth.system_role == "super_admin":
+        return
+    membership = await session.scalar(
+        select(DepartmentMembership).where(
+            DepartmentMembership.department_id == department_id,
+            DepartmentMembership.user_id == auth.user_id,
+            DepartmentMembership.status == "active",
+            DepartmentMembership.role.in_(("department_admin", "agent_manager")),
+        )
+    )
+    if membership is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Department Admin or Agent Manager required.",
+        )
+
+
 def channel_permission(agent: Agent, channel: Channel) -> AgentPermission:
     permission = next((item for item in agent.permissions if item.channel == channel), None)
     if permission is None or not permission.enabled:
@@ -492,11 +544,11 @@ async def record_agent_usage(
 @router.get("/departments/{department_id}/agents")
 async def list_department_agents(
     department_id: UUID,
-    auth: SuperAdminDependency,
+    auth: AuthDependency,
     session: DbSession,
 ) -> dict[str, object]:
-    await set_super_admin_context(session, auth.system_role)
     await get_department_or_404(department_id, session)
+    await require_department_member_access(department_id, auth, session)
     result = await session.execute(
         select(Agent)
         .options(*agent_load_options())
@@ -511,12 +563,12 @@ async def list_department_agents(
 async def create_department_agent(
     department_id: UUID,
     payload: AgentCreate,
-    auth: SuperAdminDependency,
+    auth: AuthDependency,
     _: CsrfDependency,
     session: DbSession,
 ) -> dict[str, object]:
-    await set_super_admin_context(session, auth.system_role)
     await get_department_or_404(department_id, session)
+    await require_department_agent_manager_access(department_id, auth, session)
     agent = Agent(
         department_id=department_id,
         slug=payload.slug,
@@ -572,23 +624,24 @@ async def create_department_agent(
 @router.get("/agents/{agent_id}")
 async def get_agent(
     agent_id: UUID,
-    auth: SuperAdminDependency,
+    auth: AuthDependency,
     session: DbSession,
 ) -> dict[str, object]:
-    await set_super_admin_context(session, auth.system_role)
-    return {"data": agent_data(await get_agent_or_404(agent_id, session))}
+    agent = await get_agent_or_404(agent_id, session)
+    await require_agent_member_access(agent, auth, session)
+    return {"data": agent_data(agent)}
 
 
 @router.patch("/agents/{agent_id}")
 async def update_agent(
     agent_id: UUID,
     payload: AgentUpdate,
-    auth: SuperAdminDependency,
+    auth: AuthDependency,
     _: CsrfDependency,
     session: DbSession,
 ) -> dict[str, object]:
-    await set_super_admin_context(session, auth.system_role)
     agent = await get_agent_or_404(agent_id, session)
+    await require_department_agent_manager_access(agent.department_id, auth, session)
     for field in (
         "name",
         "description",
