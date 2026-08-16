@@ -7,6 +7,8 @@ Create Date: 2026-08-16
 
 from __future__ import annotations
 
+import os
+import re
 from collections.abc import Sequence
 
 import sqlalchemy as sa
@@ -20,8 +22,10 @@ depends_on: str | Sequence[str] | None = None
 
 
 def _app_role() -> str:
-    bind = op.get_bind()
-    return str(bind.exec_driver_sql("SELECT current_user").scalar_one())
+    role = os.getenv("POSTGRES_APP_USER", "agentdesk_app")
+    if not re.fullmatch(r"[a-z_][a-z0-9_]*", role):
+        raise RuntimeError("POSTGRES_APP_USER must be a safe PostgreSQL identifier")
+    return role
 
 
 def upgrade() -> None:
