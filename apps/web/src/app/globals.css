@@ -194,6 +194,37 @@ h1 { max-width: 700px; margin: 0; font-size: clamp(28px, 4vw, 42px); line-height
   font: inherit;
   line-height: 1.7;
 }
+.providerBadge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 800;
+}
+.providerBadge.active { color: #18774f; background: #effaf5; }
+.providerBadge.missing { color: #9b2438; background: #fff1f3; }
+.settingsGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.settingsPanel {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 20px;
+  background: white;
+}
+.settingsPanel h2 { margin: 0 0 16px; font-size: 18px; }
+.settingsPanel dl { margin: 0; display: grid; gap: 14px; }
+.settingsPanel dt { color: var(--muted); font-size: 12px; font-weight: 750; }
+.settingsPanel dd { margin: 4px 0 0; color: var(--ink); overflow-wrap: anywhere; }
+.settingsNote { margin: 0 0 14px; color: var(--muted); font-size: 13px; line-height: 1.75; }
+.commandBox {
+  margin: 12px 0 0;
+  overflow-x: auto;
+  border-radius: 9px;
+  padding: 13px;
+  color: #e8ecff;
+  background: #151722;
+  font: 12px/1.6 Consolas, "Liberation Mono", monospace;
+}
 .usageHero { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 14px; margin-bottom: 18px; }
 .usageHero article { padding: 20px; border: 1px solid var(--line); border-radius: 11px; background: white; }
 .usageHero span, .usageHero small { display: block; color: var(--muted); font-size: 12px; }
@@ -208,6 +239,7 @@ h1 { max-width: 700px; margin: 0; font-size: clamp(28px, 4vw, 42px); line-height
   .serviceGrid { grid-template-columns: repeat(2, 1fr); }
   .departmentForm { grid-template-columns: repeat(2, 1fr); }
   .memberForm, .agentFormGrid { grid-template-columns: repeat(2, 1fr); }
+  .settingsGrid { grid-template-columns: 1fr; }
   .usageHero { grid-template-columns: 1fr; }
 }
 @media (max-width: 720px) {

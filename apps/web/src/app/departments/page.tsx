@@ -36,6 +36,7 @@ export default async function DepartmentsPage() {
           <Link className="navItem active" href="/departments">แผนกทั้งหมด</Link>
           <Link className="navItem" href="/agents">Agents</Link>
           <Link className="navItem" href="/usage">Token และค่าใช้จ่าย</Link>
+          <Link className="navItem" href="/settings/openrouter">ตั้งค่า OpenRouter</Link>
         </nav>
         <div className="sidebarFooter"><span className="avatar">SA</span><div><strong>{data.user.display_name}</strong><small>Super Admin</small></div></div>
       </aside>

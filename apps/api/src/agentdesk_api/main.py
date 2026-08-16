@@ -14,6 +14,7 @@ from agentdesk_api.api.auth import router as auth_router
 from agentdesk_api.api.departments import router as departments_router
 from agentdesk_api.api.health import router as health_router
 from agentdesk_api.api.router import router as api_router
+from agentdesk_api.api.settings import router as settings_router
 from agentdesk_api.api.usage import refresh_exchange_rate_if_stale
 from agentdesk_api.api.usage import router as usage_router
 from agentdesk_api.config import get_settings
@@ -65,5 +66,6 @@ app.include_router(auth_router, prefix=settings.api_v1_prefix)
 app.include_router(me_router, prefix=settings.api_v1_prefix)
 app.include_router(departments_router, prefix=settings.api_v1_prefix)
 app.include_router(agents_router, prefix=settings.api_v1_prefix)
+app.include_router(settings_router, prefix=settings.api_v1_prefix)
 app.include_router(usage_router, prefix=settings.api_v1_prefix)
 app.include_router(api_router, prefix=settings.api_v1_prefix)

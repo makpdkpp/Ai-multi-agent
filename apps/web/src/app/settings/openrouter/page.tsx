@@ -3,10 +3,15 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { LogoutButton } from "@/components/logout-button";
-import { DepartmentUsage, UsageDashboard, UsageSummary } from "@/components/usage-dashboard";
+import { OpenRouterSettings } from "@/components/openrouter-settings";
 
 type CurrentUser = { display_name: string; system_role: string };
-type Department = { id: string; code: string; name: string };
+type OpenRouterStatus = {
+  configured: boolean;
+  base_url: string;
+  app_title: string;
+  secret_source: string;
+};
 const apiUrl = process.env.API_INTERNAL_URL ?? "http://localhost:8000/api/v1";
 
 async function apiFetch(path: string) {
@@ -19,37 +24,20 @@ async function apiFetch(path: string) {
 
 async function loadPage(): Promise<{
   user: CurrentUser;
-  systemSummary: UsageSummary;
-  departments: DepartmentUsage[];
+  openrouter: OpenRouterStatus;
 } | null> {
-  const [meResponse, departmentsResponse, usageResponse] = await Promise.all([
+  const [meResponse, statusResponse] = await Promise.all([
     apiFetch("/me"),
-    apiFetch("/departments"),
-    apiFetch("/system/usage/summary"),
+    apiFetch("/system/openrouter/status"),
   ]);
   if (meResponse.status === 401) return null;
   const user = (await meResponse.json()).data as CurrentUser;
   if (user.system_role !== "super_admin") redirect("/");
-  if (!departmentsResponse.ok || !usageResponse.ok) throw new Error("Unable to load usage dashboard");
-  const departments = (await departmentsResponse.json()).data as Department[];
-  const summaries = await Promise.all(
-    departments.map(async (department) => {
-      const response = await apiFetch(`/departments/${department.id}/usage/summary`);
-      if (!response.ok) throw new Error("Unable to load department usage");
-      return {
-        ...department,
-        summary: (await response.json()).data as UsageSummary,
-      };
-    }),
-  );
-  return {
-    user,
-    systemSummary: (await usageResponse.json()).data as UsageSummary,
-    departments: summaries,
-  };
+  if (!statusResponse.ok) throw new Error("Unable to load OpenRouter status");
+  return { user, openrouter: (await statusResponse.json()).data as OpenRouterStatus };
 }
 
-export default async function UsagePage() {
+export default async function OpenRouterSettingsPage() {
   const data = await loadPage();
   if (!data) redirect("/login");
 
@@ -62,8 +50,8 @@ export default async function UsagePage() {
           <Link className="navItem" href="/">ภาพรวมระบบ</Link>
           <Link className="navItem" href="/departments">แผนกทั้งหมด</Link>
           <Link className="navItem" href="/agents">Agents</Link>
-          <Link className="navItem active" href="/usage">Token และค่าใช้จ่าย</Link>
-          <Link className="navItem" href="/settings/openrouter">ตั้งค่า OpenRouter</Link>
+          <Link className="navItem" href="/usage">Token และค่าใช้จ่าย</Link>
+          <Link className="navItem active" href="/settings/openrouter">ตั้งค่า OpenRouter</Link>
         </nav>
         <div className="sidebarFooter">
           <span className="avatar">SA</span>
@@ -72,11 +60,11 @@ export default async function UsagePage() {
       </aside>
       <section className="content">
         <header className="topbar">
-          <span>AgentDesk / <strong>Token และค่าใช้จ่าย</strong></span>
+          <span>AgentDesk / <strong>ตั้งค่า OpenRouter</strong></span>
           <div className="topbarActions"><span className="environment">Local Pilot</span><LogoutButton /></div>
         </header>
         <div className="page">
-          <UsageDashboard systemSummary={data.systemSummary} departments={data.departments} />
+          <OpenRouterSettings status={data.openrouter} />
         </div>
       </section>
     </main>
