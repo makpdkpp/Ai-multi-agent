@@ -224,8 +224,15 @@ class AgentInvokePayload(BaseModel):
         return self
 
 
-async def set_super_admin_context(session: DbSession, role: str) -> None:
-    await session.execute(text("SELECT set_config('app.system_role', :role, true)"), {"role": role})
+async def set_auth_context(session: AsyncSession, auth: AuthContext) -> None:
+    await session.execute(
+        text("SELECT set_config('app.system_role', :role, true)"),
+        {"role": auth.system_role},
+    )
+    await session.execute(
+        text("SELECT set_config('app.user_id', :user_id, true)"),
+        {"user_id": str(auth.user_id)},
+    )
 
 
 def active_prompt(agent: Agent) -> AgentPromptVersion:
@@ -320,14 +327,7 @@ async def set_agent_department_context(
     auth: AuthContext,
     agent: Agent,
 ) -> None:
-    await session.execute(
-        text("SELECT set_config('app.system_role', :role, true)"),
-        {"role": auth.system_role},
-    )
-    await session.execute(
-        text("SELECT set_config('app.user_id', :user_id, true)"),
-        {"user_id": str(auth.user_id)},
-    )
+    await set_auth_context(session, auth)
     await session.execute(
         text("SELECT set_config('app.department_id', :department_id, true)"),
         {"department_id": str(agent.department_id)},
@@ -358,14 +358,7 @@ async def require_department_member_access(
     auth: AuthContext,
     session: AsyncSession,
 ) -> None:
-    await session.execute(
-        text("SELECT set_config('app.system_role', :role, true)"),
-        {"role": auth.system_role},
-    )
-    await session.execute(
-        text("SELECT set_config('app.user_id', :user_id, true)"),
-        {"user_id": str(auth.user_id)},
-    )
+    await set_auth_context(session, auth)
     await session.execute(
         text("SELECT set_config('app.department_id', :department_id, true)"),
         {"department_id": str(department_id)},
@@ -547,8 +540,8 @@ async def list_department_agents(
     auth: AuthDependency,
     session: DbSession,
 ) -> dict[str, object]:
-    await get_department_or_404(department_id, session)
     await require_department_member_access(department_id, auth, session)
+    await get_department_or_404(department_id, session)
     result = await session.execute(
         select(Agent)
         .options(*agent_load_options())
@@ -567,8 +560,8 @@ async def create_department_agent(
     _: CsrfDependency,
     session: DbSession,
 ) -> dict[str, object]:
-    await get_department_or_404(department_id, session)
     await require_department_agent_manager_access(department_id, auth, session)
+    await get_department_or_404(department_id, session)
     agent = Agent(
         department_id=department_id,
         slug=payload.slug,
@@ -627,6 +620,7 @@ async def get_agent(
     auth: AuthDependency,
     session: DbSession,
 ) -> dict[str, object]:
+    await set_auth_context(session, auth)
     agent = await get_agent_or_404(agent_id, session)
     await require_agent_member_access(agent, auth, session)
     return {"data": agent_data(agent)}
@@ -640,6 +634,7 @@ async def update_agent(
     _: CsrfDependency,
     session: DbSession,
 ) -> dict[str, object]:
+    await set_auth_context(session, auth)
     agent = await get_agent_or_404(agent_id, session)
     await require_department_agent_manager_access(agent.department_id, auth, session)
     for field in (
@@ -707,6 +702,7 @@ async def invoke_agent(
     session: DbSession,
     settings: AppSettings,
 ) -> dict[str, object]:
+    await set_auth_context(session, auth)
     agent = await get_agent_or_404(agent_id, session)
     await require_agent_member_access(agent, auth, session)
     if agent.status != "active":
