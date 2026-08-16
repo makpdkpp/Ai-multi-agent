@@ -225,6 +225,15 @@ class AgentLlmConfig(TimestampMixin, Base):
     temperature: Mapped[Decimal] = mapped_column(Numeric(4, 2), default=Decimal("0.20"))
     top_p: Mapped[Decimal] = mapped_column(Numeric(4, 2), default=Decimal("1.00"))
     max_output_tokens: Mapped[int] = mapped_column(Integer(), default=1024)
+    input_per_million: Mapped[Decimal] = mapped_column(
+        Numeric(20, 8),
+        default=Decimal("0.15000000"),
+    )
+    output_per_million: Mapped[Decimal] = mapped_column(
+        Numeric(20, 8),
+        default=Decimal("0.60000000"),
+    )
+    cached_input_per_million: Mapped[Decimal | None] = mapped_column(Numeric(20, 8))
     status: Mapped[str] = mapped_column(String(20), default="active")
 
     agent: Mapped[Agent] = relationship(back_populates="llm_configs")

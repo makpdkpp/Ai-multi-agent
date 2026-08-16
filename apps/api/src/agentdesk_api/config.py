@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     exchange_rate_api_url: str = "https://open.er-api.com/v6/latest/USD"
     exchange_rate_sync_interval_seconds: int = 21600
     exchange_rate_min_refresh_seconds: int = 86400
+    openrouter_api_key: str | None = None
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    openrouter_app_title: str = "AgentDesk"
+    openrouter_timeout_seconds: int = 60
 
     @field_validator("app_secret_key")
     @classmethod

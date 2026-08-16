@@ -101,6 +101,9 @@ services:
       S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-change-me-minio}
       S3_BUCKET: ${MINIO_BUCKET:-agentdesk-files}
       WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}
+      OPENROUTER_APP_TITLE: ${OPENROUTER_APP_TITLE:-AgentDesk}
     ports:
       - "8000:8000"
     depends_on:

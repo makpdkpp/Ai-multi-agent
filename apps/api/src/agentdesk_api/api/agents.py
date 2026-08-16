@@ -4,17 +4,43 @@ import re
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Literal
-from uuid import UUID
+from uuid import UUID, uuid4
 
+import httpx
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field, field_validator, model_validator
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from agentdesk_api.api.auth import CsrfDependency, DbSession, SuperAdminDependency
+from agentdesk_api.api.auth import (
+    AppSettings,
+    AuthContext,
+    AuthDependency,
+    CsrfDependency,
+    DbSession,
+    SuperAdminDependency,
+)
 from agentdesk_api.api.departments import get_department_or_404
-from agentdesk_api.db.models import Agent, AgentLlmConfig, AgentPermission, AgentPromptVersion
+from agentdesk_api.api.usage import (
+    UsageEventPayload,
+    calculate_cost,
+    get_or_create_model,
+    get_or_create_pricing,
+    get_or_create_provider,
+    latest_exchange_rate,
+    money,
+)
+from agentdesk_api.db.models import (
+    Agent,
+    AgentLlmConfig,
+    AgentPermission,
+    AgentPromptVersion,
+    DepartmentBudget,
+    DepartmentMembership,
+    LlmUsageEvent,
+)
 
 router = APIRouter(tags=["agents"])
 _slug_pattern = re.compile(r"^[a-z][a-z0-9-]{1,79}$")
@@ -33,6 +59,9 @@ class AgentLlmConfigPayload(BaseModel):
     temperature: Decimal = Field(default=Decimal("0.20"), ge=Decimal("0"), le=Decimal("2"))
     top_p: Decimal = Field(default=Decimal("1.00"), gt=Decimal("0"), le=Decimal("1"))
     max_output_tokens: int = Field(default=1024, ge=1, le=200000)
+    input_per_million: Decimal = Field(default=Decimal("0.15000000"), ge=Decimal("0"))
+    output_per_million: Decimal = Field(default=Decimal("0.60000000"), ge=Decimal("0"))
+    cached_input_per_million: Decimal | None = Field(default=None, ge=Decimal("0"))
 
     @field_validator("model_key")
     @classmethod
@@ -170,6 +199,32 @@ class AgentView(BaseModel):
     updated_at: datetime
 
 
+class AgentInvokeMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=20000)
+
+    @field_validator("content")
+    @classmethod
+    def normalize_content(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Message content is required")
+        return normalized
+
+
+class AgentInvokePayload(BaseModel):
+    messages: list[AgentInvokeMessage] = Field(min_length=1, max_length=40)
+    channel: Channel = "internal_chat"
+    conversation_id: UUID | None = None
+    message_id: UUID | None = None
+
+    @model_validator(mode="after")
+    def require_latest_user_message(self) -> AgentInvokePayload:
+        if self.messages[-1].role != "user":
+            raise ValueError("Last message must be from user")
+        return self
+
+
 async def set_super_admin_context(session: DbSession, role: str) -> None:
     await session.execute(text("SELECT set_config('app.system_role', :role, true)"), {"role": role})
 
@@ -194,6 +249,15 @@ def active_llm_config(agent: Agent) -> AgentLlmConfig:
     return config
 
 
+def approx_tokens(text: str) -> int:
+    return max(1, (len(text) + 3) // 4)
+
+
+def estimate_input_tokens(system_prompt: str, messages: list[AgentInvokeMessage]) -> int:
+    message_tokens = sum(approx_tokens(message.content) for message in messages)
+    return approx_tokens(system_prompt) + message_tokens
+
+
 def agent_data(agent: Agent) -> dict[str, object]:
     prompt = active_prompt(agent)
     config = active_llm_config(agent)
@@ -214,6 +278,11 @@ def agent_data(agent: Agent) -> dict[str, object]:
             "temperature": str(config.temperature),
             "top_p": str(config.top_p),
             "max_output_tokens": config.max_output_tokens,
+            "input_per_million": str(config.input_per_million),
+            "output_per_million": str(config.output_per_million),
+            "cached_input_per_million": str(config.cached_input_per_million)
+            if config.cached_input_per_million is not None
+            else None,
         },
         permissions=[
             {
@@ -245,6 +314,179 @@ async def get_agent_or_404(agent_id: UUID, session: DbSession) -> Agent:
     if agent is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent not found.")
     return agent
+
+
+async def set_agent_department_context(
+    session: AsyncSession,
+    auth: AuthContext,
+    agent: Agent,
+) -> None:
+    await session.execute(
+        text("SELECT set_config('app.system_role', :role, true)"),
+        {"role": auth.system_role},
+    )
+    await session.execute(
+        text("SELECT set_config('app.user_id', :user_id, true)"),
+        {"user_id": str(auth.user_id)},
+    )
+    await session.execute(
+        text("SELECT set_config('app.department_id', :department_id, true)"),
+        {"department_id": str(agent.department_id)},
+    )
+
+
+async def require_agent_member_access(
+    agent: Agent,
+    auth: AuthContext,
+    session: AsyncSession,
+) -> None:
+    await set_agent_department_context(session, auth, agent)
+    if auth.system_role == "super_admin":
+        return
+    membership = await session.scalar(
+        select(DepartmentMembership).where(
+            DepartmentMembership.department_id == agent.department_id,
+            DepartmentMembership.user_id == auth.user_id,
+            DepartmentMembership.status == "active",
+        )
+    )
+    if membership is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent not found.")
+
+
+def channel_permission(agent: Agent, channel: Channel) -> AgentPermission:
+    permission = next((item for item in agent.permissions if item.channel == channel), None)
+    if permission is None or not permission.enabled:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Agent channel is not enabled.",
+        )
+    return permission
+
+
+async def budget_guard(
+    session: AsyncSession,
+    agent: Agent,
+    channel: Channel,
+    estimated_cost_usd: Decimal,
+    estimated_cost_thb: Decimal,
+) -> dict[str, object]:
+    budget = await session.scalar(
+        select(DepartmentBudget).where(
+            DepartmentBudget.department_id == agent.department_id,
+            DepartmentBudget.period_type == "monthly",
+            DepartmentBudget.enabled.is_(True),
+        )
+    )
+    if budget is None or budget.limit_amount == 0:
+        return {"allowed": True, "budget": None}
+    spent_row = (
+        await session.execute(
+            select(
+                func.coalesce(func.sum(LlmUsageEvent.display_cost_usd), 0),
+                func.coalesce(func.sum(LlmUsageEvent.display_cost_thb), 0),
+            ).where(LlmUsageEvent.department_id == agent.department_id)
+        )
+    ).one()
+    spent = Decimal(spent_row[1]) if budget.currency == "THB" else Decimal(spent_row[0])
+    projected = spent + (estimated_cost_thb if budget.currency == "THB" else estimated_cost_usd)
+    percent = (
+        Decimal("0")
+        if budget.limit_amount == 0
+        else projected * Decimal("100") / budget.limit_amount
+    )
+    should_pause = budget.action_on_exceed == "pause_all_llm" or (
+        budget.action_on_exceed == "pause_public_widget" and channel == "public_widget"
+    )
+    data = {
+        "currency": budget.currency,
+        "limit_amount": str(money(budget.limit_amount)),
+        "spent_amount": str(money(spent)),
+        "projected_amount": str(money(projected)),
+        "projected_percent": str(money(percent)),
+        "action_on_exceed": budget.action_on_exceed,
+    }
+    if projected > budget.limit_amount and should_pause:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail={"message": "Department budget would be exceeded.", "budget": data},
+        )
+    return {"allowed": True, "budget": data}
+
+
+def usage_payload_from_invoke(
+    agent: Agent,
+    config: AgentLlmConfig,
+    request_trace_id: UUID,
+    input_tokens: int,
+    output_tokens: int,
+    latency_ms: int | None,
+    provider_request_id: str | None,
+    conversation_id: UUID | None,
+    message_id: UUID | None,
+) -> UsageEventPayload:
+    return UsageEventPayload(
+        department_id=agent.department_id,
+        usage_type="answer_synthesis",
+        model_key=config.model_key,
+        display_name=config.model_key,
+        request_trace_id=request_trace_id,
+        agent_id=agent.id,
+        conversation_id=conversation_id,
+        message_id=message_id,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        input_per_million=config.input_per_million,
+        output_per_million=config.output_per_million,
+        cached_input_per_million=config.cached_input_per_million,
+        latency_ms=latency_ms,
+        provider_request_id=provider_request_id,
+    )
+
+
+async def record_agent_usage(
+    session: AsyncSession,
+    payload: UsageEventPayload,
+) -> dict[str, object]:
+    rate = await latest_exchange_rate(session)
+    provider = await get_or_create_provider(session, payload)
+    model = await get_or_create_model(session, provider, payload)
+    pricing = await get_or_create_pricing(session, model, payload)
+    cost = calculate_cost(payload, rate.rate)
+    event = LlmUsageEvent(
+        department_id=payload.department_id,
+        agent_id=payload.agent_id,
+        conversation_id=payload.conversation_id,
+        message_id=payload.message_id,
+        request_trace_id=payload.request_trace_id,
+        parent_event_id=payload.parent_event_id,
+        usage_type=payload.usage_type,
+        provider_id=provider.id,
+        model_id=model.id,
+        pricing_version_id=pricing.id,
+        exchange_rate_id=rate.id,
+        input_tokens=payload.input_tokens,
+        output_tokens=payload.output_tokens,
+        cached_input_tokens=payload.cached_input_tokens,
+        provider_cost_usd=cost.provider_cost_usd,
+        infrastructure_cost_usd=money(payload.infrastructure_cost_usd),
+        display_cost_usd=cost.display_cost_usd,
+        display_cost_thb=cost.display_cost_thb,
+        exchange_rate_snapshot=money(rate.rate),
+        pricing_snapshot=cost.pricing_snapshot,
+        latency_ms=payload.latency_ms,
+        status=payload.status,
+        provider_request_id=payload.provider_request_id,
+    )
+    session.add(event)
+    await session.flush()
+    return {
+        "id": str(event.id),
+        "input_tokens": payload.input_tokens,
+        "output_tokens": payload.output_tokens,
+        "display_cost_usd": str(cost.display_cost_usd),
+        "display_cost_thb": str(cost.display_cost_thb),
+    }
 
 
 @router.get("/departments/{department_id}/agents")
@@ -301,6 +543,9 @@ async def create_department_agent(
             temperature=payload.llm_config.temperature,
             top_p=payload.llm_config.top_p,
             max_output_tokens=payload.llm_config.max_output_tokens,
+            input_per_million=payload.llm_config.input_per_million,
+            output_per_million=payload.llm_config.output_per_million,
+            cached_input_per_million=payload.llm_config.cached_input_per_million,
             status="active",
         )
     )
@@ -376,6 +621,9 @@ async def update_agent(
         config.temperature = payload.llm_config.temperature
         config.top_p = payload.llm_config.top_p
         config.max_output_tokens = payload.llm_config.max_output_tokens
+        config.input_per_million = payload.llm_config.input_per_million
+        config.output_per_million = payload.llm_config.output_per_million
+        config.cached_input_per_million = payload.llm_config.cached_input_per_million
         config.updated_at = datetime.now(UTC)
 
     if payload.permissions is not None:
@@ -395,3 +643,128 @@ async def update_agent(
     response_data = agent_data(agent)
     await session.commit()
     return {"data": response_data}
+
+
+@router.post("/agents/{agent_id}/invoke")
+async def invoke_agent(
+    agent_id: UUID,
+    payload: AgentInvokePayload,
+    auth: AuthDependency,
+    _: CsrfDependency,
+    session: DbSession,
+    settings: AppSettings,
+) -> dict[str, object]:
+    agent = await get_agent_or_404(agent_id, session)
+    await require_agent_member_access(agent, auth, session)
+    if agent.status != "active":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Agent must be active before it can be invoked.",
+        )
+    channel_permission(agent, payload.channel)
+    if not settings.openrouter_api_key:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="OPENROUTER_API_KEY is not configured.",
+        )
+
+    prompt = active_prompt(agent)
+    config = active_llm_config(agent)
+    estimated_input = estimate_input_tokens(prompt.system_prompt, payload.messages)
+    estimate_payload = UsageEventPayload(
+        department_id=agent.department_id,
+        usage_type="answer_synthesis",
+        model_key=config.model_key,
+        input_tokens=estimated_input,
+        output_tokens=config.max_output_tokens,
+        input_per_million=config.input_per_million,
+        output_per_million=config.output_per_million,
+        cached_input_per_million=config.cached_input_per_million,
+    )
+    rate = await latest_exchange_rate(session)
+    estimated_cost = calculate_cost(estimate_payload, rate.rate)
+    budget = await budget_guard(
+        session,
+        agent,
+        payload.channel,
+        estimated_cost.display_cost_usd,
+        estimated_cost.display_cost_thb,
+    )
+
+    request_trace_id = uuid4()
+    started_at = datetime.now(UTC)
+    openrouter_messages = [
+        {"role": "system", "content": prompt.system_prompt},
+        *[message.model_dump() for message in payload.messages],
+    ]
+    try:
+        async with httpx.AsyncClient(timeout=settings.openrouter_timeout_seconds) as client:
+            response = await client.post(
+                f"{settings.openrouter_base_url.rstrip('/')}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {settings.openrouter_api_key}",
+                    "HTTP-Referer": settings.web_origin,
+                    "X-Title": settings.openrouter_app_title,
+                },
+                json={
+                    "model": config.model_key,
+                    "messages": openrouter_messages,
+                    "temperature": float(config.temperature),
+                    "top_p": float(config.top_p),
+                    "max_tokens": config.max_output_tokens,
+                },
+            )
+    except httpx.TimeoutException as exc:
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="OpenRouter request timed out.",
+        ) from exc
+    except httpx.HTTPError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="OpenRouter request failed.",
+        ) from exc
+
+    if response.status_code >= 400:
+        detail = response.text[:500]
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"OpenRouter returned {response.status_code}: {detail}",
+        )
+
+    body = response.json()
+    choices = body.get("choices") or []
+    if not choices:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="OpenRouter response did not include choices.",
+        )
+    answer = choices[0].get("message", {}).get("content") or ""
+    usage = body.get("usage") or {}
+    input_tokens = int(usage.get("prompt_tokens") or estimated_input)
+    output_tokens = int(usage.get("completion_tokens") or approx_tokens(answer))
+    latency_ms = int((datetime.now(UTC) - started_at).total_seconds() * 1000)
+    usage_data = await record_agent_usage(
+        session,
+        usage_payload_from_invoke(
+            agent=agent,
+            config=config,
+            request_trace_id=request_trace_id,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            latency_ms=latency_ms,
+            provider_request_id=body.get("id"),
+            conversation_id=payload.conversation_id,
+            message_id=payload.message_id,
+        ),
+    )
+    await session.commit()
+    return {
+        "data": {
+            "request_trace_id": str(request_trace_id),
+            "agent_id": str(agent.id),
+            "message": {"role": "assistant", "content": answer},
+            "usage": usage_data,
+            "budget": budget.get("budget"),
+        }
+    }

@@ -32,6 +32,9 @@ export type AgentRecord = {
     temperature: string;
     top_p: string;
     max_output_tokens: number;
+    input_per_million: string;
+    output_per_million: string;
+    cached_input_per_million: string | null;
   };
   permissions: AgentPermission[];
 };
@@ -58,6 +61,9 @@ export function AgentManager({
   const [agents, setAgents] = useState(initialAgents);
   const [departmentId, setDepartmentId] = useState(departments[0]?.id ?? "");
   const [editingAgent, setEditingAgent] = useState<AgentRecord | null>(null);
+  const [testingAgent, setTestingAgent] = useState<AgentRecord | null>(null);
+  const [testPrompt, setTestPrompt] = useState("");
+  const [testAnswer, setTestAnswer] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
   const selectedAgents = useMemo(
@@ -96,6 +102,9 @@ export function AgentManager({
         temperature: form.get("temperature"),
         top_p: form.get("top_p"),
         max_output_tokens: Number(form.get("max_output_tokens")),
+        input_per_million: form.get("input_per_million"),
+        output_per_million: form.get("output_per_million"),
+        cached_input_per_million: form.get("cached_input_per_million") || null,
       },
       permissions: [
         { channel: "internal_chat", enabled: true, allow_anonymous: false },
@@ -129,6 +138,35 @@ export function AgentManager({
     } else {
       const body = await response.json().catch(() => null);
       setError(response.status === 409 ? "slug นี้ถูกใช้ในแผนกแล้ว" : body?.detail ?? "บันทึก Agent ไม่สำเร็จ");
+    }
+    setBusy(null);
+  }
+
+  async function testAgent(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!testingAgent) return;
+    setBusy("test-agent");
+    setError("");
+    setTestAnswer("");
+    const response = await fetch(`${apiUrl}/agents/${testingAgent.id}/invoke`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken() },
+      body: JSON.stringify({
+        channel: "internal_chat",
+        messages: [{ role: "user", content: testPrompt }],
+      }),
+    });
+    const body = await response.json().catch(() => null);
+    if (response.ok) {
+      const usage = body.data.usage;
+      setTestAnswer(
+        `${body.data.message.content}\n\nCost: ${usage.display_cost_usd} USD / ${usage.display_cost_thb} THB`,
+      );
+      router.refresh();
+    } else {
+      const detail = body?.detail;
+      setError(typeof detail === "string" ? detail : detail?.message ?? "ทดสอบ Agent ไม่สำเร็จ");
     }
     setBusy(null);
   }
@@ -200,6 +238,20 @@ export function AgentManager({
             <input name="max_output_tokens" type="number" min="1" max="200000" defaultValue={editingAgent?.llm_config.max_output_tokens ?? 1024} required />
           </label>
         </div>
+        <div className="agentFormGrid pricingGrid">
+          <label>
+            Input / 1M USD
+            <input name="input_per_million" type="number" min="0" step="0.00000001" defaultValue={editingAgent?.llm_config.input_per_million ?? "0.15000000"} required />
+          </label>
+          <label>
+            Output / 1M USD
+            <input name="output_per_million" type="number" min="0" step="0.00000001" defaultValue={editingAgent?.llm_config.output_per_million ?? "0.60000000"} required />
+          </label>
+          <label>
+            Cached input / 1M
+            <input name="cached_input_per_million" type="number" min="0" step="0.00000001" defaultValue={editingAgent?.llm_config.cached_input_per_million ?? ""} />
+          </label>
+        </div>
         <input name="top_p" type="hidden" value={editingAgent?.llm_config.top_p ?? "1.00"} />
         <label>
           คำอธิบาย
@@ -248,6 +300,13 @@ export function AgentManager({
                 <td><span className={`departmentStatus ${agent.status}`}>{agent.status}</span></td>
                 <td className="departmentActions">
                   <button className="secondaryButton" type="button" onClick={() => openEdit(agent)}>แก้ไข</button>
+                  <button className="secondaryButton" type="button" onClick={() => {
+                    setTestingAgent(agent);
+                    setTestAnswer("");
+                    setError("");
+                  }}>
+                    ทดสอบ
+                  </button>
                   <button className="secondaryButton" type="button" disabled={busy === agent.id} onClick={() => changeStatus(agent, agent.status === "active" ? "paused" : "active")}>
                     {agent.status === "active" ? "พัก" : "เปิดใช้"}
                   </button>
@@ -257,6 +316,30 @@ export function AgentManager({
           </table>
         )}
       </section>
+
+      {testingAgent && (
+        <section className="testPanel">
+          <div className="sectionTitle">
+            <div>
+              <h2>ทดสอบ {testingAgent.name}</h2>
+              <p>ส่งข้อความผ่าน internal chat และบันทึก token/cost อัตโนมัติ</p>
+            </div>
+            <button className="secondaryButton" type="button" onClick={() => setTestingAgent(null)}>
+              ปิด
+            </button>
+          </div>
+          <form className="agentForm" onSubmit={testAgent}>
+            <label>
+              ข้อความทดสอบ
+              <textarea value={testPrompt} onChange={(event) => setTestPrompt(event.target.value)} rows={3} required />
+            </label>
+            <button className="primaryButton" type="submit" disabled={busy === "test-agent"}>
+              {busy === "test-agent" ? "กำลังส่ง..." : "ส่งทดสอบ"}
+            </button>
+          </form>
+          {testAnswer && <pre className="testAnswer">{testAnswer}</pre>}
+        </section>
+      )}
     </>
   );
 }

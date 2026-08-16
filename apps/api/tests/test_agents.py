@@ -3,7 +3,13 @@ from decimal import Decimal
 import pytest
 from pydantic import ValidationError
 
-from agentdesk_api.api.agents import AgentCreate, AgentLlmConfigPayload, ChannelPermissionPayload
+from agentdesk_api.api.agents import (
+    AgentCreate,
+    AgentInvokePayload,
+    AgentLlmConfigPayload,
+    ChannelPermissionPayload,
+    estimate_input_tokens,
+)
 from agentdesk_api.api.departments import DepartmentMemberCreate
 
 
@@ -54,10 +60,24 @@ def test_llm_config_bounds() -> None:
         temperature=Decimal("0.70"),
         top_p=Decimal("0.90"),
         max_output_tokens=2048,
+        input_per_million=Decimal("0.20000000"),
+        output_per_million=Decimal("0.80000000"),
     )
 
     assert config.model_key == "openai/gpt-4o-mini"
     assert config.temperature == Decimal("0.70")
+    assert config.input_per_million == Decimal("0.20000000")
+
+
+def test_invoke_payload_requires_user_last_message() -> None:
+    with pytest.raises(ValidationError):
+        AgentInvokePayload(messages=[{"role": "assistant", "content": "สวัสดี"}])
+
+
+def test_estimate_input_tokens_includes_system_prompt_and_messages() -> None:
+    payload = AgentInvokePayload(messages=[{"role": "user", "content": "12345678"}])
+
+    assert estimate_input_tokens("1234", payload.messages) == 3
 
 
 def test_department_member_normalizes_email_and_name() -> None:
