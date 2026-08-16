@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type Department = { id: string; code: string; name: string };
@@ -76,6 +76,28 @@ export function ChatWorkspace({
   ));
   const activeAgent = agents.find((agent) => agent.id === agentId);
   const messages = activeConversation?.messages ?? [];
+
+  useEffect(() => {
+    if (!activeConversation || activeConversation.messages) return;
+    const conversationId = activeConversation.id;
+    let ignore = false;
+    async function loadActiveConversation() {
+      const response = await fetch(`${apiUrl}/chat/conversations/${conversationId}`, {
+        credentials: "include",
+      });
+      const body = await response.json().catch(() => null);
+      if (!ignore && response.ok) {
+        setActiveConversation(body.data);
+        setConversations((current) => current.map((item) => (
+          item.id === body.data.id ? body.data : item
+        )));
+      }
+    }
+    loadActiveConversation();
+    return () => {
+      ignore = true;
+    };
+  }, [activeConversation]);
 
   async function loadConversation(conversation: Conversation) {
     setError("");

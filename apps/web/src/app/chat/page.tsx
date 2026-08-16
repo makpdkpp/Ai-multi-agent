@@ -23,6 +23,18 @@ type AgentRecord = {
   slug: string;
   status: string;
 };
+type ChatMessage = {
+  id: string;
+  sender_type: "user" | "assistant" | "system";
+  content: string;
+  usage?: {
+    input_tokens: number;
+    output_tokens: number;
+    display_cost_usd: string;
+    display_cost_thb: string;
+  } | null;
+  created_at: string;
+};
 type Conversation = {
   id: string;
   department_id: string;
@@ -37,6 +49,7 @@ type Conversation = {
     display_cost_usd: string;
     display_cost_thb: string;
   };
+  messages?: ChatMessage[];
 };
 
 const apiUrl = process.env.API_INTERNAL_URL ?? "http://localhost:8000/api/v1";
@@ -82,12 +95,19 @@ async function loadPage(): Promise<{
   );
   const conversationsResponse = await apiFetch("/chat/conversations");
   if (!conversationsResponse.ok) throw new Error("Unable to load conversations");
+  const conversations = (await conversationsResponse.json()).data as Conversation[];
+  if (conversations[0]) {
+    const activeConversationResponse = await apiFetch(`/chat/conversations/${conversations[0].id}`);
+    if (activeConversationResponse.ok) {
+      conversations[0] = (await activeConversationResponse.json()).data as Conversation;
+    }
+  }
 
   return {
     user,
     departments,
     agents: agentGroups.flat(),
-    conversations: (await conversationsResponse.json()).data as Conversation[],
+    conversations,
   };
 }
 
