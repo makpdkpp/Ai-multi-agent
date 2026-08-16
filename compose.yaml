@@ -1,0 +1,145 @@
+name: ${COMPOSE_PROJECT_NAME:-agentdesk}
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-agentdesk}
+      POSTGRES_USER: ${POSTGRES_ADMIN_USER:-agentdesk_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:-change-me-admin}
+      APP_DB_USER: ${POSTGRES_APP_USER:-agentdesk_app}
+      APP_DB_PASSWORD: ${POSTGRES_APP_PASSWORD:-change-me-app}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:-change-me-redis}"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-change-me-redis}", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-agentdesk_minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-change-me-minio}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-agentdesk_minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-change-me-minio}
+      MINIO_BUCKET: ${MINIO_BUCKET:-agentdesk-files}
+    entrypoint: ["/bin/sh", "/config/create-bucket.sh"]
+    volumes:
+      - ./infra/minio/create-bucket.sh:/config/create-bucket.sh:ro
+    restart: "no"
+
+  migrate:
+    build:
+      context: ./apps/api
+      target: runtime
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      APP_SECRET_KEY: ${APP_SECRET_KEY:-replace-with-at-least-32-random-characters}
+      POSTGRES_APP_USER: ${POSTGRES_APP_USER:-agentdesk_app}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_ADMIN_USER:-agentdesk_admin}:${POSTGRES_ADMIN_PASSWORD:-change-me-admin}@postgres:5432/${POSTGRES_DB:-agentdesk}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-change-me-redis}@redis:6379/0
+      S3_ENDPOINT_URL: http://minio:9000
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-agentdesk_minio}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-change-me-minio}
+      S3_BUCKET: ${MINIO_BUCKET:-agentdesk-files}
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build:
+      context: ./apps/api
+      target: runtime
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      APP_SECRET_KEY: ${APP_SECRET_KEY:-replace-with-at-least-32-random-characters}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_APP_USER:-agentdesk_app}:${POSTGRES_APP_PASSWORD:-change-me-app}@postgres:5432/${POSTGRES_DB:-agentdesk}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-change-me-redis}@redis:6379/0
+      S3_ENDPOINT_URL: http://minio:9000
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-agentdesk_minio}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-change-me-minio}
+      S3_BUCKET: ${MINIO_BUCKET:-agentdesk-files}
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
+    ports:
+      - "8000:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=2)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./apps/web
+      target: runner
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000/api/v1}
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000/api/v1}
+      API_INTERNAL_URL: ${API_INTERNAL_URL:-http://api:8000/api/v1}
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:3000/login"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:

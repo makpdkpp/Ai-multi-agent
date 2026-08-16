@@ -1,0 +1,12 @@
+.git
+.env
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+**/.venv
+**/node_modules
+**/.next
+*.log
+Ai multi agent
+agent-platform-mockup.html
+

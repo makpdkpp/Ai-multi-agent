@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Platform — Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F3F4F7;
+  --surface:#FFFFFF;
+  --ink:#14161B;
+  --ink-soft:#63677A;
+  --ink-faint:#9A9EAE;
+  --border:#E4E6EC;
+  --brand:#3452FF;
+  --brand-deep:#1E2E99;
+  --brand-tint:#EBEEFF;
+  --mysql:#2A66E8;
+  --mysql-tint:#E9F0FF;
+  --excel:#1E9461;
+  --excel-tint:#E7F7EF;
+  --pdf:#D6473F;
+  --pdf-tint:#FCEAE9;
+  --success:#12A669;
+  --warning:#DB8B12;
+  --danger:#E5484D;
+  --sidebar:#14161F;
+  --sidebar-soft:#8C90A6;
+  --radius:12px;
+  --shadow:0 1px 2px rgba(20,22,27,0.04), 0 4px 16px rgba(20,22,27,0.05);
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+body{
+  font-family:'Inter','Noto Sans Thai',sans-serif;
+  background:var(--bg);
+  color:var(--ink);
+  font-size:14px;
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,.num{ font-family:'Space Grotesk','Noto Sans Thai',sans-serif; letter-spacing:-0.01em; }
+
+.app{ display:flex; min-height:100vh; }
+
+/* ---------- SIDEBAR ---------- */
+.sidebar{
+  width:236px; background:var(--sidebar); color:#fff; flex-shrink:0;
+  display:flex; flex-direction:column; padding:22px 16px;
+}
+.brand{ display:flex; align-items:center; gap:10px; padding:4px 8px 24px; }
+.brand-mark{
+  width:30px; height:30px; border-radius:8px;
+  background:linear-gradient(135deg, var(--brand), #7C93FF);
+  display:flex; align-items:center; justify-content:center;
+  font-family:'Space Grotesk'; font-weight:700; font-size:14px; color:#fff;
+}
+.brand-name{ font-family:'Space Grotesk'; font-weight:600; font-size:15px; }
+.role-switch{
+  display:flex; background:#1E212D; border-radius:9px; padding:3px; margin-bottom:26px;
+}
+.role-switch button{
+  flex:1; border:none; background:transparent; color:var(--sidebar-soft);
+  font-family:inherit; font-size:12.5px; font-weight:600; padding:8px 6px;
+  border-radius:7px; cursor:pointer; transition:.15s;
+}
+.role-switch button.active{ background:var(--brand); color:#fff; }
+
+.nav-label{ font-size:11px; color:#585C70; text-transform:uppercase; letter-spacing:.06em; padding:6px 10px; margin-top:12px; font-weight:600; }
+.nav-item{
+  display:flex; align-items:center; gap:11px; padding:9px 10px; border-radius:8px;
+  color:#C4C7D6; font-size:13.5px; font-weight:500; cursor:pointer; transition:.15s;
+}
+.nav-item:hover{ background:#1D202B; color:#fff; }
+.nav-item.active{ background:var(--brand-deep); color:#fff; }
+.nav-icon{ width:17px; height:17px; flex-shrink:0; opacity:.9; }
+.sidebar-foot{
+  margin-top:auto; display:flex; align-items:center; gap:10px; padding:12px 10px;
+  border-top:1px solid #23262F; margin-top:20px;
+}
+.avatar{ width:30px; height:30px; border-radius:50%; background:#3A3E4F; display:flex; align-items:center; justify-content:center; font-weight:600; font-size:12px; }
+.sf-name{ font-size:12.5px; font-weight:600; color:#fff; }
+.sf-role{ font-size:11px; color:var(--sidebar-soft); }
+
+/* ---------- MAIN ---------- */
+.main{ flex:1; min-width:0; display:flex; flex-direction:column; }
+.topbar{
+  height:64px; border-bottom:1px solid var(--border); background:var(--surface);
+  display:flex; align-items:center; justify-content:space-between; padding:0 28px; flex-shrink:0;
+}
+.crumb{ font-size:13px; color:var(--ink-faint); }
+.crumb b{ color:var(--ink); font-weight:600; }
+.top-actions{ display:flex; gap:10px; align-items:center; }
+.search{
+  display:flex; align-items:center; gap:8px; background:var(--bg); border:1px solid var(--border);
+  border-radius:8px; padding:7px 12px; font-size:12.5px; color:var(--ink-faint); width:220px;
+}
+
+.content{ padding:28px 32px 60px; max-width:1180px; }
+.page-head{ display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:22px; }
+.page-head h1{ font-size:22px; font-weight:700; margin-bottom:4px; }
+.page-head p{ color:var(--ink-soft); font-size:13.5px; }
+
+.btn{
+  font-family:inherit; font-size:13px; font-weight:600; border-radius:8px; padding:9px 16px;
+  cursor:pointer; border:1px solid transparent; display:inline-flex; align-items:center; gap:7px;
+  transition:.15s;
+}
+.btn-primary{ background:var(--brand); color:#fff; }
+.btn-primary:hover{ background:var(--brand-deep); }
+.btn-ghost{ background:var(--surface); border-color:var(--border); color:var(--ink); }
+.btn-ghost:hover{ border-color:var(--ink-faint); }
+.btn-sm{ padding:6px 12px; font-size:12px; }
+
+/* stat cards */
+.stat-row{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:26px; }
+.stat-card{
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:16px 18px; box-shadow:var(--shadow);
+}
+.stat-card .label{ font-size:12px; color:var(--ink-soft); font-weight:500; margin-bottom:8px; }
+.stat-card .num{ font-size:26px; font-weight:700; }
+.stat-card .delta{ font-size:11.5px; color:var(--success); font-weight:600; margin-top:4px; }
+
+/* table card */
+.card{ background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; }
+.card-head{ display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid var(--border); }
+.card-head h3{ font-size:14.5px; font-weight:700; }
+table{ width:100%; border-collapse:collapse; }
+th{ text-align:left; font-size:11.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-faint); font-weight:600; padding:11px 20px; border-bottom:1px solid var(--border); }
+td{ padding:13px 20px; border-bottom:1px solid var(--border); font-size:13px; vertical-align:middle; }
+tr:last-child td{ border-bottom:none; }
+tr:hover td{ background:#FBFBFD; }
+
+.dept-name{ font-weight:600; }
+.dept-sub{ font-size:11.5px; color:var(--ink-faint); }
+.tag{
+  display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:600;
+  padding:4px 9px; border-radius:100px;
+}
+.tag-active{ background:#E5F7EE; color:var(--success); }
+.tag-draft{ background:#F1F2F5; color:var(--ink-soft); }
+.tag-disabled{ background:var(--pdf-tint); color:var(--danger); }
+.dot{ width:6px; height:6px; border-radius:50%; background:currentColor; }
+
+.mini-avatars{ display:flex; align-items:center; }
+.mini-avatar{
+  width:24px; height:24px; border-radius:50%; background:var(--brand-tint); color:var(--brand-deep);
+  font-size:10.5px; font-weight:700; display:flex; align-items:center; justify-content:center;
+  border:2px solid var(--surface); margin-left:-7px;
+}
+.mini-avatar:first-child{ margin-left:0; }
+
+.icon-btn{ width:30px; height:30px; border-radius:7px; border:1px solid var(--border); background:var(--surface); display:inline-flex; align-items:center; justify-content:center; cursor:pointer; color:var(--ink-soft); }
+.icon-btn:hover{ border-color:var(--ink-faint); color:var(--ink); }
+
+/* ---------- AGENT GRID (department admin) ---------- */
+.agent-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-bottom:30px; }
+.agent-card{
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:18px;
+  box-shadow:var(--shadow); display:flex; flex-direction:column; gap:12px;
+}
+.agent-card-top{ display:flex; justify-content:space-between; align-items:flex-start; }
+.agent-name{ font-weight:700; font-size:14.5px; margin-bottom:3px; }
+.agent-desc{ font-size:12px; color:var(--ink-faint); }
+.source-chips{ display:flex; gap:6px; flex-wrap:wrap; }
+.chip{
+  display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:600;
+  padding:4px 8px; border-radius:7px;
+}
+.chip-mysql{ background:var(--mysql-tint); color:var(--mysql); }
+.chip-excel{ background:var(--excel-tint); color:var(--excel); }
+.chip-pdf{ background:var(--pdf-tint); color:var(--pdf); }
+.chip-dot{ width:6px; height:6px; border-radius:2px; background:currentColor; }
+
+.agent-meta{ display:flex; justify-content:space-between; font-size:11.5px; color:var(--ink-faint); border-top:1px solid var(--border); padding-top:11px; }
+.agent-actions{ display:flex; gap:8px; }
+.agent-actions .btn{ flex:1; justify-content:center; }
+
+.agent-card.new{
+  align-items:center; justify-content:center; text-align:center; gap:6px;
+  border:1.5px dashed var(--border); box-shadow:none; cursor:pointer; color:var(--ink-faint);
+  min-height:180px;
+}
+.agent-card.new:hover{ border-color:var(--brand); color:var(--brand); background:var(--brand-tint); }
+.new-plus{ width:38px; height:38px; border-radius:50%; background:var(--bg); display:flex; align-items:center; justify-content:center; font-size:20px; margin-bottom:2px; }
+
+.section-title{ font-size:15px; font-weight:700; margin:30px 0 14px; }
+
+/* ---------- MODAL (create agent wizard) ---------- */
+.overlay{
+  position:fixed; inset:0; background:rgba(15,16,22,0.5); display:none; align-items:center; justify-content:center; z-index:50;
+}
+.overlay.show{ display:flex; }
+.modal{
+  background:var(--surface); border-radius:16px; width:520px; max-width:92vw; max-height:86vh; overflow:auto;
+  box-shadow:0 20px 60px rgba(0,0,0,0.25);
+}
+.modal-head{ display:flex; justify-content:space-between; align-items:center; padding:18px 22px; border-bottom:1px solid var(--border); }
+.modal-head h3{ font-size:15.5px; font-weight:700; }
+.modal-close{ cursor:pointer; color:var(--ink-faint); font-size:18px; background:none; border:none; }
+.steps{ display:flex; gap:6px; padding:16px 22px 0; }
+.step-dot{ flex:1; height:4px; border-radius:3px; background:var(--border); }
+.step-dot.done{ background:var(--brand); }
+.modal-body{ padding:20px 22px; }
+.field{ margin-bottom:16px; }
+.field label{ display:block; font-size:12.5px; font-weight:600; margin-bottom:6px; }
+.field input, .field select, .field textarea{
+  width:100%; border:1px solid var(--border); border-radius:8px; padding:9px 11px; font-family:inherit; font-size:13px; background:var(--bg);
+}
+.source-options{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+.source-opt{
+  border:1.5px solid var(--border); border-radius:10px; padding:14px 10px; text-align:center; cursor:pointer; font-size:12px; font-weight:600;
+}
+.source-opt.picked{ border-color:var(--brand); background:var(--brand-tint); color:var(--brand-deep); }
+.source-opt .ic{ font-size:20px; display:block; margin-bottom:6px; }
+.modal-foot{ display:flex; justify-content:space-between; padding:16px 22px; border-top:1px solid var(--border); }
+
+.view{ display:none; }
+.view.active{ display:block; }
+
+@media(max-width:920px){
+  .agent-grid{ grid-template-columns:repeat(2,1fr); }
+  .stat-row{ grid-template-columns:repeat(2,1fr); }
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">AI</div>
+      <div class="brand-name">AgentDesk</div>
+    </div>
+
+    <div class="role-switch">
+      <button class="active" id="btn-role-super" onclick="setRole('super')">Super Admin</button>
+      <button id="btn-role-admin" onclick="setRole('admin')">Dept. Admin</button>
+    </div>
+
+    <div id="nav-super">
+      <div class="nav-label">ภาพรวมระบบ</div>
+      <div class="nav-item active"><span class="nav-icon">▦</span>แดชบอร์ด</div>
+      <div class="nav-item"><span class="nav-icon">🏢</span>แผนกทั้งหมด</div>
+      <div class="nav-item"><span class="nav-icon">👤</span>Department Admin</div>
+      <div class="nav-item"><span class="nav-icon">📋</span>Audit log</div>
+      <div class="nav-item"><span class="nav-icon">⚙</span>ตั้งค่าระบบ</div>
+    </div>
+
+    <div id="nav-admin" style="display:none;">
+      <div class="nav-label">แผนกขาย</div>
+      <div class="nav-item active"><span class="nav-icon">▦</span>Agent ของฉัน</div>
+      <div class="nav-item"><span class="nav-icon">💬</span>แชทภายใน</div>
+      <div class="nav-item"><span class="nav-icon">🌐</span>Embed widget</div>
+      <div class="nav-item"><span class="nav-icon">👥</span>สมาชิกทีม</div>
+      <div class="nav-item"><span class="nav-icon">⚙</span>ตั้งค่าแผนก</div>
+    </div>
+
+    <div class="sidebar-foot">
+      <div class="avatar">รว</div>
+      <div>
+        <div class="sf-name" id="sf-name">รวี ศุภกิจ</div>
+        <div class="sf-role" id="sf-role">Super Admin</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <div class="topbar">
+      <div class="crumb" id="crumb">AgentDesk / <b>แดชบอร์ด</b></div>
+      <div class="top-actions">
+        <div class="search">🔍 ค้นหา...</div>
+        <div class="icon-btn">🔔</div>
+      </div>
+    </div>
+
+    <!-- =========== SUPER ADMIN VIEW =========== -->
+    <section class="view active" id="view-super">
+      <div class="content">
+        <div class="page-head">
+          <div>
+            <h1>ภาพรวมระบบ</h1>
+            <p>จัดการแผนกและสิทธิ์ของ department admin ทั้งหมดในองค์กร</p>
+          </div>
+          <button class="btn btn-primary">+ สร้าง Department Admin</button>
+        </div>
+
+        <div class="stat-row">
+          <div class="stat-card"><div class="label">แผนกทั้งหมด</div><div class="num">8</div><div class="delta">+1 เดือนนี้</div></div>
+          <div class="stat-card"><div class="label">Department Admin</div><div class="num">11</div><div class="delta">+2 เดือนนี้</div></div>
+          <div class="stat-card"><div class="label">Agent ที่ใช้งานอยู่</div><div class="num">27</div><div class="delta">+5 เดือนนี้</div></div>
+          <div class="stat-card"><div class="label">ข้อความวันนี้</div><div class="num">1,842</div><div class="delta">+12% จากเมื่อวาน</div></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3>แผนกทั้งหมด</h3>
+            <button class="btn btn-ghost btn-sm">ดูทั้งหมด</button>
+          </div>
+          <table>
+            <thead>
+              <tr><th>แผนก</th><th>Admin</th><th>Agent</th><th>สมาชิก</th><th>สถานะ</th><th></th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><div class="dept-name">ฝ่ายขาย</div><div class="dept-sub">สร้างเมื่อ 3 มี.ค. 2026</div></td>
+                <td><div class="mini-avatars"><div class="mini-avatar">พว</div><div class="mini-avatar">กส</div></div></td>
+                <td>4</td><td>12</td>
+                <td><span class="tag tag-active"><span class="dot"></span>ใช้งานอยู่</span></td>
+                <td><div class="icon-btn">⋯</div></td>
+              </tr>
+              <tr>
+                <td><div class="dept-name">ฝ่ายซัพพอร์ตลูกค้า</div><div class="dept-sub">สร้างเมื่อ 18 ก.พ. 2026</div></td>
+                <td><div class="mini-avatars"><div class="mini-avatar">ดจ</div></div></td>
+                <td>6</td><td>9</td>
+                <td><span class="tag tag-active"><span class="dot"></span>ใช้งานอยู่</span></td>
+                <td><div class="icon-btn">⋯</div></td>
+              </tr>
+              <tr>
+                <td><div class="dept-name">ฝ่ายคลังสินค้า</div><div class="dept-sub">สร้างเมื่อ 2 ม.ค. 2026</div></td>
+                <td><div class="mini-avatars"><div class="mini-avatar">ณช</div></div></td>
+                <td>3</td><td>5</td>
+                <td><span class="tag tag-draft"><span class="dot"></span>ตั้งค่าไม่เสร็จ</span></td>
+                <td><div class="icon-btn">⋯</div></td>
+              </tr>
+              <tr>
+                <td><div class="dept-name">ฝ่ายการเงิน</div><div class="dept-sub">สร้างเมื่อ 20 ธ.ค. 2025</div></td>
+                <td><div class="mini-avatars"><div class="mini-avatar">อพ</div><div class="mini-avatar">ยล</div></div></td>
+                <td>2</td><td>4</td>
+                <td><span class="tag tag-disabled"><span class="dot"></span>ระงับใช้งาน</span></td>
+                <td><div class="icon-btn">⋯</div></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========== DEPARTMENT ADMIN VIEW =========== -->
+    <section class="view" id="view-admin">
+      <div class="content">
+        <div class="page-head">
+          <div>
+            <h1>Agent ของแผนกขาย</h1>
+            <p>สร้างและจัดการ agent ที่เชื่อมต่อกับข้อมูลของแผนกคุณ</p>
+          </div>
+          <button class="btn btn-primary" onclick="openModal()">+ สร้าง Agent ใหม่</button>
+        </div>
+
+        <div class="stat-row">
+          <div class="stat-card"><div class="label">Agent ทั้งหมด</div><div class="num">4</div></div>
+          <div class="stat-card"><div class="label">ใช้งานอยู่</div><div class="num">3</div></div>
+          <div class="stat-card"><div class="label">ข้อความวันนี้</div><div class="num">312</div></div>
+          <div class="stat-card"><div class="label">สมาชิกในทีม</div><div class="num">12</div></div>
+        </div>
+
+        <div class="agent-grid">
+          <div class="agent-card">
+            <div class="agent-card-top">
+              <div>
+                <div class="agent-name">ผู้ช่วยถามยอดขาย</div>
+                <div class="agent-desc">ตอบคำถามยอดขายจาก MySQL + ไฟล์งบรายเดือน</div>
+              </div>
+              <span class="tag tag-active"><span class="dot"></span>Active</span>
+            </div>
+            <div class="source-chips">
+              <span class="chip chip-mysql"><span class="chip-dot"></span>MySQL</span>
+              <span class="chip chip-excel"><span class="chip-dot"></span>Excel</span>
+            </div>
+            <div class="agent-meta"><span>LLM: Claude Sonnet 5 (OpenRouter)</span><span>แก้ไข 2 วันก่อน</span></div>
+            <div class="agent-actions">
+              <button class="btn btn-ghost btn-sm">💬 แชท</button>
+              <button class="btn btn-ghost btn-sm">⚙ ตั้งค่า</button>
+            </div>
+          </div>
+
+          <div class="agent-card">
+            <div class="agent-card-top">
+              <div>
+                <div class="agent-name">FAQ สินค้าหน้าเว็บ</div>
+                <div class="agent-desc">ตอบคำถามสเปกสินค้าจากคู่มือ PDF ให้ลูกค้า</div>
+              </div>
+              <span class="tag tag-active"><span class="dot"></span>Active</span>
+            </div>
+            <div class="source-chips">
+              <span class="chip chip-pdf"><span class="chip-dot"></span>PDF ×12</span>
+            </div>
+            <div class="agent-meta"><span>LLM: Llama 3.1 70B (Local)</span><span>แก้ไข 5 ชม. ก่อน</span></div>
+            <div class="agent-actions">
+              <button class="btn btn-ghost btn-sm">🌐 ฝังเว็บ</button>
+              <button class="btn btn-ghost btn-sm">⚙ ตั้งค่า</button>
+            </div>
+          </div>
+
+          <div class="agent-card">
+            <div class="agent-card-top">
+              <div>
+                <div class="agent-name">สต๊อกและใบเสนอราคา</div>
+                <div class="agent-desc">เช็คสต๊อกสินค้าจากฐานข้อมูลคลัง</div>
+              </div>
+              <span class="tag tag-draft"><span class="dot"></span>Draft</span>
+            </div>
+            <div class="source-chips">
+              <span class="chip chip-mysql"><span class="chip-dot"></span>MySQL</span>
+            </div>
+            <div class="agent-meta"><span>LLM: ยังไม่ได้ตั้งค่า</span><span>สร้างเมื่อวานนี้</span></div>
+            <div class="agent-actions">
+              <button class="btn btn-ghost btn-sm">▶ ทำต่อ</button>
+              <button class="btn btn-ghost btn-sm">⚙ ตั้งค่า</button>
+            </div>
+          </div>
+
+          <div class="agent-card new" onclick="openModal()">
+            <div class="new-plus">+</div>
+            <div>สร้าง Agent ใหม่</div>
+          </div>
+        </div>
+
+        <div class="section-title">สมาชิกในทีม</div>
+        <div class="card">
+          <table>
+            <thead><tr><th>ชื่อ</th><th>อีเมล</th><th>สิทธิ์</th><th>Agent ที่เข้าถึง</th><th></th></tr></thead>
+            <tbody>
+              <tr>
+                <td><div class="dept-name">พิมพ์วิภา สายชล</div></td>
+                <td>pimwipa@company.co.th</td>
+                <td><span class="tag tag-active">Owner</span></td>
+                <td>ทั้งหมด</td>
+                <td><div class="icon-btn">⋯</div></td>
+              </tr>
+              <tr>
+                <td><div class="dept-name">กันตพงศ์ สุขใจ</div></td>
+                <td>kantapong@company.co.th</td>
+                <td><span class="tag tag-draft">Viewer</span></td>
+                <td>2 agent</td>
+                <td><div class="icon-btn">⋯</div></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- MODAL: create agent -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>สร้าง Agent ใหม่</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="steps"><div class="step-dot done"></div><div class="step-dot"></div><div class="step-dot"></div></div>
+    <div class="modal-body">
+      <div class="field">
+        <label>ชื่อ Agent</label>
+        <input type="text" placeholder="เช่น ผู้ช่วยถามยอดขาย">
+      </div>
+      <div class="field">
+        <label>เชื่อมต่อข้อมูล</label>
+        <div class="source-options">
+          <div class="source-opt picked"><span class="ic">🗄</span>MySQL</div>
+          <div class="source-opt"><span class="ic">📊</span>Excel</div>
+          <div class="source-opt"><span class="ic">📄</span>PDF</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>เลือก LLM</label>
+        <select><option>Claude Sonnet 5 — OpenRouter</option><option>Llama 3.1 70B — Local (Ollama)</option><option>Qwen 2.5 32B — Local (vLLM)</option></select>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal()">ยกเลิก</button>
+      <button class="btn btn-primary">ถัดไป →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function setRole(role){
+  const isSuper = role === 'super';
+  document.getElementById('view-super').classList.toggle('active', isSuper);
+  document.getElementById('view-admin').classList.toggle('active', !isSuper);
+  document.getElementById('nav-super').style.display = isSuper ? 'block' : 'none';
+  document.getElementById('nav-admin').style.display = isSuper ? 'none' : 'block';
+  document.getElementById('btn-role-super').classList.toggle('active', isSuper);
+  document.getElementById('btn-role-admin').classList.toggle('active', !isSuper);
+  document.getElementById('sf-name').textContent = isSuper ? 'รวี ศุภกิจ' : 'พิมพ์วิภา สายชล';
+  document.getElementById('sf-role').textContent = isSuper ? 'Super Admin' : 'Department Admin';
+  document.getElementById('crumb').innerHTML = isSuper ? 'AgentDesk / <b>แดชบอร์ด</b>' : 'AgentDesk / <b>Agent ของฉัน</b>';
+}
+function openModal(){ document.getElementById('overlay').classList.add('show'); }
+function closeModal(){ document.getElementById('overlay').classList.remove('show'); }
+document.querySelectorAll('.source-opt').forEach(el=>{
+  el.addEventListener('click', ()=>{
+    el.parentElement.querySelectorAll('.source-opt').forEach(o=>o.classList.remove('picked'));
+    el.classList.add('picked');
+  });
+});
+</script>
+</body>
+</html>
