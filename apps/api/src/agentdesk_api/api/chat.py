@@ -7,7 +7,7 @@ from uuid import UUID, uuid4
 import httpx
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.orm import selectinload
 
 from agentdesk_api.api.agents import (
@@ -158,6 +158,16 @@ async def conversation_data(
     return data
 
 
+async def set_conversation_department_context(
+    session: DbSession,
+    conversation: ChatConversation,
+) -> None:
+    await session.execute(
+        text("SELECT set_config('app.department_id', :department_id, true)"),
+        {"department_id": str(conversation.department_id)},
+    )
+
+
 async def get_conversation_or_404(
     conversation_id: UUID,
     session: DbSession,
@@ -196,8 +206,12 @@ async def list_conversations(
         statement = statement.where(ChatConversation.agent_id == agent_id)
     result = await session.execute(statement)
     conversations = list(result.scalars().all())
+    data = []
+    for conversation in conversations:
+        await set_conversation_department_context(session, conversation)
+        data.append(await conversation_data(conversation, session))
     return {
-        "data": [await conversation_data(conversation, session) for conversation in conversations],
+        "data": data,
         "meta": {"total": len(conversations)},
     }
 
@@ -224,6 +238,7 @@ async def create_conversation(
     session.add(conversation)
     await session.flush()
     await session.refresh(conversation, attribute_names=["agent", "messages"])
+    await set_conversation_department_context(session, conversation)
     response_data = await conversation_data(conversation, session, include_messages=True)
     await session.commit()
     return {"data": response_data}
@@ -237,6 +252,7 @@ async def get_conversation(
 ) -> dict[str, object]:
     await set_auth_context(session, auth)
     conversation = await get_conversation_or_404(conversation_id, session)
+    await set_conversation_department_context(session, conversation)
     return {"data": await conversation_data(conversation, session, include_messages=True)}
 
 
@@ -399,6 +415,7 @@ async def send_message(
         conversation.title = payload.content[:60]
     await session.flush()
     await session.refresh(conversation, attribute_names=["agent", "messages"])
+    await set_conversation_department_context(session, conversation)
     response_conversation = await conversation_data(conversation, session, include_messages=True)
     response_user_message = message_data(user_message)
     response_assistant_message = message_data(assistant_message)
