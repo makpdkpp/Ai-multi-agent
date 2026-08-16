@@ -143,11 +143,9 @@ export function ChatWorkspace({
     if (!content) return;
     setBusy(true);
     setError("");
-    setDraft("");
     const conversation = activeConversation ?? await createConversation();
     if (!conversation) {
       setBusy(false);
-      setDraft(content);
       return;
     }
     const response = await fetch(`${apiUrl}/chat/conversations/${conversation.id}/messages`, {
@@ -158,6 +156,7 @@ export function ChatWorkspace({
     });
     const body = await response.json().catch(() => null);
     if (response.ok) {
+      setDraft("");
       setActiveConversation(body.data.conversation);
       setConversations((current) => {
         const next = current.filter((item) => item.id !== body.data.conversation.id);
@@ -165,7 +164,6 @@ export function ChatWorkspace({
       });
       router.refresh();
     } else {
-      setDraft(content);
       const detail = body?.detail;
       setError(typeof detail === "string" ? detail : detail?.message ?? "ส่งข้อความไม่สำเร็จ");
     }
