@@ -15,6 +15,12 @@ type ChatMessage = {
   id: string;
   sender_type: "user" | "assistant" | "system";
   content: string;
+  usage?: {
+    input_tokens: number;
+    output_tokens: number;
+    display_cost_usd: string;
+    display_cost_thb: string;
+  } | null;
   created_at: string;
 };
 type Conversation = {
@@ -200,7 +206,7 @@ export function ChatWorkspace({
             <p>{activeAgent ? `กำลังใช้ ${activeAgent.name}` : "เลือก Agent เพื่อเริ่มแชท"}</p>
           </div>
           <div className="chatUsage">
-            <span>{activeConversation?.usage.requests ?? 0} requests</span>
+            <span>รวม {activeConversation?.usage.requests ?? 0} requests</span>
             <strong>{activeConversation?.usage.display_cost_usd ?? "0"} USD</strong>
             <small>{activeConversation?.usage.display_cost_thb ?? "0"} THB</small>
           </div>
@@ -218,6 +224,14 @@ export function ChatWorkspace({
             <article className={`chatMessage ${message.sender_type}`} key={message.id}>
               <small>{message.sender_type === "assistant" ? "AI" : "คุณ"}</small>
               <p>{message.content}</p>
+              {message.usage && (
+                <div className="messageCost">
+                  Cost: {message.usage.display_cost_usd} USD / {message.usage.display_cost_thb} THB
+                  <span>
+                    Tokens: {message.usage.input_tokens} input / {message.usage.output_tokens} output
+                  </span>
+                </div>
+              )}
             </article>
           ))}
         </div>

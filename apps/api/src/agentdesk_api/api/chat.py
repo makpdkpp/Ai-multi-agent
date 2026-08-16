@@ -59,14 +59,54 @@ class ChatSendPayload(BaseModel):
         return normalized
 
 
-def message_data(message: ChatMessage) -> dict[str, object]:
+def usage_event_data(event: LlmUsageEvent | None) -> dict[str, object] | None:
+    if event is None:
+        return None
     return {
+        "id": str(event.id),
+        "input_tokens": event.input_tokens,
+        "output_tokens": event.output_tokens,
+        "display_cost_usd": str(event.display_cost_usd),
+        "display_cost_thb": str(event.display_cost_thb),
+    }
+
+
+def message_data(
+    message: ChatMessage,
+    usage_by_message_id: dict[UUID, LlmUsageEvent] | None = None,
+) -> dict[str, object]:
+    usage_event = (
+        usage_by_message_id.get(message.id)
+        if usage_by_message_id is not None and message.usage_event_id
+        else None
+    )
+    data = {
         "id": str(message.id),
         "conversation_id": str(message.conversation_id),
         "sender_type": message.sender_type,
         "content": message.content,
         "usage_event_id": str(message.usage_event_id) if message.usage_event_id else None,
         "created_at": message.created_at.isoformat(),
+    }
+    if usage_event is not None:
+        data["usage"] = usage_event_data(usage_event)
+    return data
+
+
+async def message_usage_events(
+    session: DbSession,
+    messages: list[ChatMessage],
+) -> dict[UUID, LlmUsageEvent]:
+    message_ids = [message.id for message in messages if message.usage_event_id is not None]
+    if not message_ids:
+        return {}
+    result = await session.execute(
+        select(LlmUsageEvent).where(LlmUsageEvent.message_id.in_(message_ids))
+    )
+    return {
+        event.message_id: event
+        for event in result.scalars().all()
+        if event.message_id is not None
     }
 
 
@@ -111,7 +151,10 @@ async def conversation_data(
         "usage": await conversation_usage(session, conversation.id),
     }
     if include_messages:
-        data["messages"] = [message_data(message) for message in conversation.messages]
+        usage_by_message_id = await message_usage_events(session, conversation.messages)
+        data["messages"] = [
+            message_data(message, usage_by_message_id) for message in conversation.messages
+        ]
     return data
 
 

@@ -281,6 +281,8 @@ h1 { max-width: 700px; margin: 0; font-size: clamp(28px, 4vw, 42px); line-height
 .chatMessage.user small { text-align: right; }
 .chatMessage.user p { color: white; background: var(--primary); }
 .chatMessage.assistant p { border: 1px solid var(--line); background: white; }
+.messageCost { margin-top: 6px; color: var(--muted); font-size: 12px; font-weight: 700; }
+.messageCost span { display: block; margin-top: 2px; font-size: 11px; font-weight: 600; }
 .chatComposer { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: end; padding: 16px; border-top: 1px solid var(--line); background: white; }
 .chatComposer textarea { resize: vertical; line-height: 1.6; }
 
