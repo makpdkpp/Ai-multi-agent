@@ -1,12 +1,19 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type Department = {
   id: string;
   code: string;
   name: string;
+};
+type LlmProfile = {
+  id: string;
+  display_name: string;
+  model_key: string;
+  provider_name: string | null;
+  provider_type: string | null;
 };
 
 export type AgentPermission = {
@@ -28,6 +35,7 @@ export type AgentRecord = {
   system_prompt: string;
   response_style: string | null;
   llm_config: {
+    model_id: string | null;
     model_key: string;
     temperature: string;
     top_p: string;
@@ -68,10 +76,21 @@ export function AgentManager({
   const [testAnswer, setTestAnswer] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [profiles, setProfiles] = useState<LlmProfile[]>([]);
+  const [profilesLoaded, setProfilesLoaded] = useState(false);
+  const [selectedModelId, setSelectedModelId] = useState("");
   const selectedAgents = useMemo(
     () => agents.filter((agent) => agent.department_id === departmentId),
     [agents, departmentId],
   );
+
+  useEffect(() => {
+    if (!departmentId) return;
+    fetch(`${apiUrl}/llm-profiles?department_id=${departmentId}`, { credentials: "include" })
+      .then(async (response) => (response.ok ? (await response.json()).data as LlmProfile[] : []))
+      .then((data) => { setProfiles(data); setProfilesLoaded(true); })
+      .catch(() => { setProfiles([]); setProfilesLoaded(true); });
+  }, [departmentId]);
 
   function openEdit(agent: AgentRecord) {
     setError("");
@@ -86,6 +105,10 @@ export function AgentManager({
 
   async function saveAgent(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!profilesLoaded || profiles.length === 0) {
+      setError("กรุณากำหนดสิทธิ์ Model ให้แผนกนี้ที่ LLM Settings ก่อน");
+      return;
+    }
     setBusy("save-agent");
     setError("");
     const form = new FormData(event.currentTarget);
@@ -100,6 +123,7 @@ export function AgentManager({
       system_prompt: form.get("system_prompt"),
       response_style: form.get("response_style") || null,
       llm_config: {
+        model_id: form.get("model_id") || null,
         model_key: form.get("model_key"),
         temperature: form.get("temperature"),
         top_p: form.get("top_p"),
@@ -229,7 +253,29 @@ export function AgentManager({
           </label>
           <label>
             Model
-            <input name="model_key" defaultValue={editingAgent?.llm_config.model_key ?? "openai/gpt-4o-mini"} required />
+            <select
+              name="model_id"
+              value={selectedModelId || editingAgent?.llm_config.model_id || ""}
+              onChange={(event) => setSelectedModelId(event.target.value)}
+              required
+              disabled={!profilesLoaded || profiles.length === 0}
+            >
+              <option value="">{!profilesLoaded ? "กำลังโหลด Model..." : "เลือก Model ที่ได้รับอนุญาต"}</option>
+              {profiles.map((profile) => (
+                <option key={profile.id} value={profile.id}>
+                  {profile.display_name} · {profile.provider_name ?? profile.provider_type}
+                </option>
+              ))}
+            </select>
+            <input
+              name="model_key"
+              type="hidden"
+              value={profiles.find((profile) => profile.id === (selectedModelId || editingAgent?.llm_config.model_id))?.model_key ?? ""}
+              readOnly
+            />
+            {profilesLoaded && profiles.length === 0 && (
+              <small className="fieldHint">แผนกนี้ยังไม่มีสิทธิ์ใช้ Model กรุณากำหนดสิทธิ์ที่ LLM Settings ก่อน</small>
+            )}
           </label>
           <label>
             Temperature

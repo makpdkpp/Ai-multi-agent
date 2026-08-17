@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID, uuid4
@@ -22,6 +23,7 @@ from agentdesk_api.api.agents import (
     estimate_input_tokens,
     get_agent_or_404,
     latest_exchange_rate,
+    llm_connection,
     record_agent_usage,
     require_agent_member_access,
     set_agent_department_context,
@@ -105,9 +107,7 @@ async def message_usage_events(
         select(LlmUsageEvent).where(LlmUsageEvent.message_id.in_(message_ids))
     )
     return {
-        event.message_id: event
-        for event in result.scalars().all()
-        if event.message_id is not None
+        event.message_id: event for event in result.scalars().all() if event.message_id is not None
     }
 
 
@@ -205,6 +205,11 @@ async def list_conversations(
         statement = statement.where(ChatConversation.department_id == department_id)
     if agent_id is not None:
         statement = statement.where(ChatConversation.agent_id == agent_id)
+    # Standard users must only see conversations they created. Department
+    # managers may read the department inbox, while writes remain owner-only
+    # until Human Handoff is enabled.
+    if auth.system_role != "super_admin":
+        statement = statement.where(ChatConversation.created_by == auth.user_id)
     result = await session.execute(statement)
     conversations = list(result.scalars().all())
     data = []
@@ -253,6 +258,11 @@ async def get_conversation(
 ) -> dict[str, object]:
     await set_auth_context(session, auth)
     conversation = await get_conversation_or_404(conversation_id, session)
+    if auth.system_role != "super_admin" and conversation.created_by != auth.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="คุณไม่มีสิทธิ์ส่งข้อความในบทสนทนานี้ กรุณาเริ่มแชทใหม่ด้วยบัญชีของคุณ",
+        )
     await set_conversation_department_context(session, conversation)
     return {"data": await conversation_data(conversation, session, include_messages=True)}
 
@@ -282,12 +292,6 @@ async def send_message(
             detail="Agent must be active before it can be invoked.",
         )
     channel_permission(agent, "internal_chat")
-    if not settings.openrouter_api_key:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="OPENROUTER_API_KEY is not configured.",
-        )
-
     user_message = ChatMessage(
         conversation_id=conversation.id,
         department_id=conversation.department_id,
@@ -298,6 +302,11 @@ async def send_message(
     )
     session.add(user_message)
     await session.flush()
+    # Do not keep a database connection checked out while waiting on the
+    # external LLM provider. This prevents stale/closed asyncpg connections
+    # when a provider takes longer than the database/network idle window.
+    await session.commit()
+    await set_agent_department_context(session, auth, agent)
 
     history_messages = [
         AgentInvokeMessage(
@@ -305,16 +314,24 @@ async def send_message(
             content=message.content,
         )
         for message in conversation.messages[-19:]
-        if message.sender_type in {"user", "assistant"}
+        if message.sender_type in {"user", "assistant"} and message.content.strip()
     ]
     history_messages.append(AgentInvokeMessage(role="user", content=payload.content))
 
     prompt = active_prompt(agent)
     system_prompt = f"{prompt.system_prompt}\n\n{build_runtime_context(settings)}"
-    data_source_context = await build_agent_data_source_context(session, settings, agent)
+    data_source_context = await build_agent_data_source_context(
+        session, settings, agent, payload.content
+    )
     if data_source_context:
         system_prompt = f"{system_prompt}\n\n{data_source_context}"
     config = active_llm_config(agent)
+    provider_base_url, provider_api_key = llm_connection(config, settings)
+    if not provider_api_key:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="LLM provider API key is not configured.",
+        )
     estimated_input = estimate_input_tokens(system_prompt, history_messages)
     estimate_payload = UsageEventPayload(
         department_id=agent.department_id,
@@ -344,36 +361,60 @@ async def send_message(
     ]
     try:
         async with httpx.AsyncClient(timeout=settings.openrouter_timeout_seconds) as client:
-            response = await client.post(
-                f"{settings.openrouter_base_url.rstrip('/')}/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {settings.openrouter_api_key}",
-                    "HTTP-Referer": settings.web_origin,
-                    "X-Title": settings.openrouter_app_title,
-                },
-                json={
-                    "model": config.model_key,
-                    "messages": openrouter_messages,
-                    "temperature": float(config.temperature),
-                    "top_p": float(config.top_p),
-                    "max_tokens": config.max_output_tokens,
-                },
-            )
+            response = None
+            for attempt in range(2):
+                response = await client.post(
+                    f"{provider_base_url.rstrip('/')}/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {provider_api_key}",
+                        "HTTP-Referer": settings.web_origin,
+                        "X-Title": settings.openrouter_app_title,
+                    },
+                    json={
+                        "model": config.model_key,
+                        "messages": openrouter_messages,
+                        "temperature": float(config.temperature),
+                        "top_p": float(config.top_p),
+                        "max_tokens": config.max_output_tokens,
+                    },
+                )
+                if response.status_code not in {429, 500, 502, 503, 504} or attempt == 1:
+                    break
+                retry_after = min(float(response.headers.get("Retry-After", "1")), 3.0)
+                await asyncio.sleep(max(retry_after, 0.2))
     except httpx.TimeoutException as exc:
         raise HTTPException(
             status_code=status.HTTP_504_GATEWAY_TIMEOUT,
             detail="OpenRouter request timed out.",
         ) from exc
+    except httpx.ConnectError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=(
+                f"ไม่สามารถเชื่อมต่อ LLM provider ที่ {provider_base_url} ได้ "
+                "ตรวจสอบว่า Local LM เปิด API server และตั้งค่า Base URL ให้ถูกต้อง "
+                f"({exc})"
+            ),
+        ) from exc
     except httpx.HTTPError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="OpenRouter request failed.",
+            detail=f"LLM provider request failed at {provider_base_url}: {exc}",
         ) from exc
 
+    if response.status_code == 429:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="โมเดลกำลังถูกใช้งานหนาแน่น กรุณากดส่งอีกครั้งในอีกสักครู่",
+            headers={"Retry-After": response.headers.get("Retry-After", "2")},
+        )
     if response.status_code >= 400:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"OpenRouter returned {response.status_code}: {response.text[:500]}",
+            detail=(
+                f"AI provider returned {response.status_code} for model "
+                f"{config.model_key}: {response.text[:300]}"
+            ),
         )
 
     body = response.json()
@@ -383,7 +424,22 @@ async def send_message(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="OpenRouter response did not include choices.",
         )
-    answer = choices[0].get("message", {}).get("content") or ""
+    choice = choices[0]
+    answer = (choice.get("message", {}).get("content") or "").strip()
+    if not answer:
+        finish_reason = choice.get("finish_reason")
+        if finish_reason == "length" and choice.get("message", {}).get("reasoning_content"):
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=(
+                    "โมเดลใช้ context จนเต็มก่อนสร้างคำตอบ (reasoning ถูกตัดจบ) "
+                    "กรุณาเพิ่ม Context Length ของโมเดลใน LM Studio หรือ ลดข้อมูลที่แนบกับ Agent แล้วลองใหม่"
+                ),
+            )
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="LLM provider returned an empty assistant message.",
+        )
     assistant_message = ChatMessage(
         conversation_id=conversation.id,
         department_id=conversation.department_id,

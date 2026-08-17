@@ -241,6 +241,16 @@ h1 { max-width: 700px; margin: 0; font-size: clamp(28px, 4vw, 42px); line-height
 .settingsPanel dt { color: var(--muted); font-size: 12px; font-weight: 750; }
 .settingsPanel dd { margin: 4px 0 0; color: var(--ink); overflow-wrap: anywhere; }
 .settingsNote { margin: 0 0 14px; color: var(--muted); font-size: 13px; line-height: 1.75; }
+.llmHero { display:flex; justify-content:space-between; gap:24px; align-items:flex-start; margin-bottom:20px; padding:24px; border:1px solid #dfe4f5; border-radius:16px; background:linear-gradient(135deg,#f6f7ff 0%,#fff 70%); }
+.llmHero h1 { margin:8px 0 5px; font-size:30px; letter-spacing:-.02em; }
+.llmHero p { margin:0; color:var(--muted); font-size:13px; }
+.eyebrow { color:var(--primary); font-size:11px; font-weight:850; letter-spacing:.12em; }
+.llmHealth { display:flex; align-items:center; gap:10px; min-width:220px; padding:12px 14px; border:1px solid var(--line); border-radius:12px; background:white; }
+.llmHealth strong,.llmHealth small { display:block; }.llmHealth strong { font-size:13px; }.llmHealth small { margin-top:3px; color:var(--muted); font-size:11px; overflow:hidden; text-overflow:ellipsis; max-width:190px; white-space:nowrap; }
+.healthDot { width:9px; height:9px; border-radius:50%; background:#25a06f; box-shadow:0 0 0 4px #e8f8f0; }.llmHealth.warning .healthDot { background:#d7881d; box-shadow:0 0 0 4px #fff3dc; }
+.llmSteps { display:flex; align-items:center; gap:10px; margin:0 0 22px; padding:12px 16px; border:1px solid var(--line); border-radius:12px; background:#fff; }
+.llmStep { display:flex; align-items:center; gap:9px; color:var(--muted); }.llmStep b { display:grid; place-items:center; width:27px; height:27px; border-radius:50%; background:#eef0f5; font-size:12px; }.llmStep.active { color:var(--ink); }.llmStep.active b { color:white; background:var(--primary); }.llmStep strong,.llmStep small { display:block; }.llmStep strong { font-size:12px; }.llmStep small { margin-top:2px; font-size:10px; }.stepLine { flex:1; height:1px; background:var(--line); }
+.settingsSection { margin:0 0 22px; }.sectionHeading { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:12px; }.sectionHeading > div { display:flex; gap:10px; align-items:flex-start; }.sectionHeading h2 { margin:0; font-size:18px; }.sectionHeading p { margin:4px 0 0; color:var(--muted); font-size:12px; }.sectionNumber { color:var(--primary); font-size:11px; font-weight:850; letter-spacing:.08em; }.connectionGrid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }.connectionItem { padding:14px; border:1px solid var(--line); border-radius:10px; background:#fff; }.connectionItem span { display:block; color:var(--muted); font-size:11px; }.connectionItem strong { display:block; margin-top:7px; font-size:12px; overflow-wrap:anywhere; }.advancedDetails { margin-top:12px; padding:12px 14px; border:1px dashed #cfd5e2; border-radius:10px; background:#fafbfe; }.advancedDetails summary { cursor:pointer; color:var(--primary); font-size:12px; font-weight:800; }.advancedDetails .commandBox { margin-bottom:0; }.settingsPanel h3 { margin:0; font-size:15px; }.settingsPanel.formPanel { padding:18px; }.panelTitle { display:flex; gap:10px; margin-bottom:16px; }.panelTitle p { margin:3px 0 0; color:var(--muted); font-size:11px; }.panelIcon { display:grid; place-items:center; width:30px; height:30px; border-radius:9px; color:var(--primary); background:var(--primary-soft); font-weight:900; }.stackForm { display:grid; gap:11px; }.stackForm label,.profileForm label,.permissionToolbar label { display:grid; gap:6px; color:#52586b; font-size:11px; font-weight:800; }.stackForm input,.stackForm select,.profileForm input,.profileForm select,.permissionToolbar select { width:100%; border:1px solid #dfe2ea; border-radius:8px; padding:9px 10px; background:white; font:inherit; font-size:12px; }.fieldHint { color:var(--muted); font-weight:500; }.infoPanel { background:#fbfcff; }.infoBadge { display:inline-flex; margin-bottom:13px; padding:5px 8px; border-radius:6px; color:#5a4c9a; background:#f0edff; font-size:10px; font-weight:850; }.infoPanel p { margin:8px 0 16px; color:var(--muted); font-size:12px; line-height:1.7; }.providerExample { display:flex; align-items:center; gap:9px; margin-top:10px; }.providerExample strong,.providerExample small { display:block; }.providerExample strong { font-size:12px; }.providerExample small { margin-top:2px; color:var(--muted); font-size:10px; }.providerLogo { display:grid; place-items:center; width:28px; height:28px; border-radius:8px; color:white; background:#635bff; font-size:10px; font-weight:850; }.providerLogo.local { background:#15a879; }.profileForm { display:grid; grid-template-columns:1fr 1fr 1.2fr auto; gap:12px; align-items:end; }.permissionPanel { padding:0; overflow:hidden; }.permissionToolbar { display:flex; justify-content:space-between; align-items:end; gap:15px; padding:16px 18px; border-bottom:1px solid var(--line); background:#fafbfc; }.permissionToolbar > span { color:var(--muted); font-size:11px; }.permissionToolbar label { min-width:240px; }.profileList { display:grid; }.profileRow { display:flex; align-items:center; gap:11px; padding:13px 18px; border-bottom:1px solid #eef0f5; }.profileRow:last-child { border-bottom:0; }.modelAvatar { display:grid; place-items:center; width:30px; height:30px; border-radius:8px; color:var(--primary); background:var(--primary-soft); font-size:10px; font-weight:900; }.profileInfo { flex:1; min-width:0; }.profileInfo strong,.profileInfo small { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }.profileInfo strong { font-size:12px; }.profileInfo small { margin-top:3px; color:var(--muted); font-size:10px; }
 .commandBox {
   margin: 12px 0 0;
   overflow-x: auto;
@@ -310,12 +320,15 @@ h1 { max-width: 700px; margin: 0; font-size: clamp(28px, 4vw, 42px); line-height
 .messageCost span { display: block; margin-top: 2px; font-size: 11px; font-weight: 600; }
 .chatComposer { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: end; padding: 16px; border-top: 1px solid var(--line); background: white; }
 .chatComposer textarea { resize: vertical; line-height: 1.6; }
+.grantBadge { padding:6px 9px; border-radius:999px; color:#18774f; background:#effaf5; font-size:10px; font-weight:850; white-space:nowrap; }
 
 @media (max-width: 1000px) {
   .serviceGrid { grid-template-columns: repeat(2, 1fr); }
   .departmentForm { grid-template-columns: repeat(2, 1fr); }
   .memberForm, .agentFormGrid { grid-template-columns: repeat(2, 1fr); }
   .settingsGrid { grid-template-columns: 1fr; }
+  .connectionGrid { grid-template-columns: 1fr; }
+  .profileForm { grid-template-columns: 1fr 1fr; }
   .usageHero { grid-template-columns: 1fr; }
   .chatLayout { grid-template-columns: 1fr; }
   .chatSidebar, .chatPanel { min-height: auto; }
@@ -338,4 +351,5 @@ h1 { max-width: 700px; margin: 0; font-size: clamp(28px, 4vw, 42px); line-height
   .departmentSummary, .departmentForm, .memberForm, .agentFormGrid { grid-template-columns: 1fr; }
   .toolbarSelect { width: 100%; }
   .chatComposer { grid-template-columns: 1fr; }
+  .llmHero { display:block; }.llmHealth { margin-top:16px; }.llmSteps { overflow-x:auto; }.llmStep { min-width:max-content; }.stepLine { min-width:20px; }.sectionHeading { display:block; }.sectionHeading .providerBadge { margin-top:12px; }.permissionToolbar { display:block; }.permissionToolbar > span { display:block; margin-top:9px; }.permissionToolbar label { min-width:0; }.profileForm { grid-template-columns:1fr; }.profileRow { align-items:flex-start; }.profileRow .secondaryButton { padding:7px 9px; font-size:10px; }
 }

@@ -104,6 +104,8 @@ services:
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}
       OPENROUTER_APP_TITLE: ${OPENROUTER_APP_TITLE:-AgentDesk}
+      STLM_API_KEY: ${STLM_API_KEY:-}
+      STUDIOLM_API_KEY: ${STUDIOLM_API_KEY:-}
     ports:
       - "8000:8000"
     depends_on:

@@ -100,10 +100,7 @@ async def login(
             identity.password_hash if identity else None,
         )
         account_active = bool(
-            identity
-            and user
-            and identity.status == "active"
-            and user.status == "active"
+            identity and user and identity.status == "active" and user.status == "active"
         )
         if not password_valid or not account_active:
             raise HTTPException(

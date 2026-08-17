@@ -14,11 +14,14 @@ from agentdesk_api.api.auth import router as auth_router
 from agentdesk_api.api.chat import router as chat_router
 from agentdesk_api.api.data_sources import router as data_sources_router
 from agentdesk_api.api.departments import router as departments_router
+from agentdesk_api.api.handoff import router as handoff_router
 from agentdesk_api.api.health import router as health_router
+from agentdesk_api.api.llm_profiles import router as llm_profiles_router
 from agentdesk_api.api.router import router as api_router
 from agentdesk_api.api.settings import router as settings_router
 from agentdesk_api.api.usage import refresh_exchange_rate_if_stale
 from agentdesk_api.api.usage import router as usage_router
+from agentdesk_api.api.widget import router as widget_router
 from agentdesk_api.config import get_settings
 from agentdesk_api.db.session import async_session_factory, engine
 
@@ -72,4 +75,7 @@ app.include_router(chat_router, prefix=settings.api_v1_prefix)
 app.include_router(data_sources_router, prefix=settings.api_v1_prefix)
 app.include_router(settings_router, prefix=settings.api_v1_prefix)
 app.include_router(usage_router, prefix=settings.api_v1_prefix)
+app.include_router(llm_profiles_router, prefix=settings.api_v1_prefix)
+app.include_router(handoff_router, prefix=settings.api_v1_prefix)
+app.include_router(widget_router, prefix=settings.api_v1_prefix)
 app.include_router(api_router, prefix=settings.api_v1_prefix)

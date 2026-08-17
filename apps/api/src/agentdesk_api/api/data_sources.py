@@ -25,7 +25,7 @@ from agentdesk_api.api.agents import (
     set_auth_context,
 )
 from agentdesk_api.api.auth import AppSettings, AuthDependency, CsrfDependency, DbSession
-from agentdesk_api.db.models import AgentDataSource, DataSource, SourceFile
+from agentdesk_api.db.models import AgentDataSource, DataSource, SourceChunk, SourceFile
 
 router = APIRouter(tags=["data-sources"])
 
@@ -133,9 +133,7 @@ def parse_workbook_preview(content: bytes) -> dict[str, object]:
             preview_rows.append(
                 {
                     (
-                        headers[index]
-                        if index < len(headers)
-                        else f"Column {index + 1}"
+                        headers[index] if index < len(headers) else f"Column {index + 1}"
                     ): normalize_cell(value)
                     for index, value in enumerate(row[:MAX_PREVIEW_COLUMNS])
                 }
@@ -159,6 +157,45 @@ def parse_excel_preview(content: bytes, extension: str) -> dict[str, object]:
     if extension == ".csv":
         return parse_csv_preview(content)
     return parse_workbook_preview(content)
+
+
+def build_index_chunks(
+    content: bytes, extension: str, max_rows: int = 5000
+) -> list[dict[str, object]]:
+    """Create row chunks for retrieval without sending the full workbook to the LLM."""
+    if extension == ".csv":
+        rows = list(csv.reader(StringIO(content.decode("utf-8-sig"))))
+        sheets = [("CSV", rows)]
+    else:
+        workbook = load_workbook(BytesIO(content), data_only=True, read_only=True)
+        sheets = [
+            (worksheet.title, list(worksheet.iter_rows(values_only=True)))
+            for worksheet in workbook.worksheets
+        ]
+        workbook.close()
+    chunks: list[dict[str, object]] = []
+    for sheet_name, rows in sheets:
+        if not rows:
+            continue
+        headers = [
+            str(value).strip() if value is not None and str(value).strip() else f"Column {i + 1}"
+            for i, value in enumerate(rows[0])
+        ]
+        for row_number, row in enumerate(rows[1 : max_rows + 1], start=2):
+            values = [normalize_cell(value) for value in row[:MAX_PREVIEW_COLUMNS]]
+            pairs = [
+                f"{headers[i]}: {values[i]}"
+                for i in range(min(len(headers), len(values)))
+                if values[i] not in (None, "")
+            ]
+            if pairs:
+                chunks.append(
+                    {
+                        "content": f"Sheet: {sheet_name}; Row: {row_number}; " + "; ".join(pairs),
+                        "metadata": {"sheet": sheet_name, "row": row_number},
+                    }
+                )
+    return chunks
 
 
 def source_file_data(source_file: SourceFile) -> dict[str, object]:
@@ -302,6 +339,19 @@ async def upload_excel_data_source(
     )
     session.add_all([data_source, source_file])
     await session.flush()
+    if status_value == "ready":
+        for index, chunk in enumerate(build_index_chunks(content, extension)):
+            session.add(
+                SourceChunk(
+                    department_id=department_id,
+                    data_source_id=data_source.id,
+                    source_file_id=source_file.id,
+                    chunk_index=index,
+                    content=str(chunk["content"]),
+                    metadata=chunk["metadata"],
+                )
+            )
+        data_source.status = "ready"
     await session.refresh(data_source, attribute_names=["files"])
     response_data = data_source_data(data_source)
     await session.commit()

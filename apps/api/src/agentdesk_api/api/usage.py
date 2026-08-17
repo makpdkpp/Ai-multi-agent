@@ -22,6 +22,7 @@ from agentdesk_api.api.auth import (
 )
 from agentdesk_api.config import Settings
 from agentdesk_api.db.models import (
+    BudgetAlert,
     Department,
     DepartmentBudget,
     DepartmentMembership,
@@ -42,9 +43,7 @@ class BudgetPayload(BaseModel):
     limit_amount: Decimal = Field(ge=Decimal("0"))
     period_type: Literal["monthly"] = "monthly"
     period_start_day: int = Field(default=1, ge=1, le=28)
-    action_on_exceed: Literal["notify_only", "pause_public_widget", "pause_all_llm"] = (
-        "notify_only"
-    )
+    action_on_exceed: Literal["notify_only", "pause_public_widget", "pause_all_llm"] = "notify_only"
     warning_thresholds: list[int] = Field(default_factory=lambda: [70, 90, 100])
     enabled: bool = True
 
@@ -341,9 +340,7 @@ def budget_data(
         return None
     spent = spent_thb if budget.currency == "THB" else spent_usd
     percent = (
-        Decimal("0")
-        if budget.limit_amount == 0
-        else spent * Decimal("100") / budget.limit_amount
+        Decimal("0") if budget.limit_amount == 0 else spent * Decimal("100") / budget.limit_amount
     )
     return {
         "currency": budget.currency,
@@ -604,3 +601,60 @@ async def put_department_budget(
     )
     await session.commit()
     return {"data": response_data}
+
+
+@router.post("/departments/{department_id}/budget/check")
+async def check_department_budget(
+    department_id: UUID,
+    auth: AuthDependency,
+    _: CsrfDependency,
+    session: DbSession,
+) -> dict[str, object]:
+    """Evaluate configured thresholds idempotently; a scheduler can call this endpoint."""
+    await require_department_admin(department_id, auth, session)
+    budget = await session.scalar(
+        select(DepartmentBudget).where(
+            DepartmentBudget.department_id == department_id, DepartmentBudget.enabled.is_(True)
+        )
+    )
+    if budget is None:
+        return {"data": {"alerts": [], "message": "No active budget configured."}}
+    summary = await usage_summary(session, None, None, department_id)
+    spent = Decimal(
+        summary["display_cost_thb"] if budget.currency == "THB" else summary["display_cost_usd"]
+    )
+    percent = int((spent / budget.limit_amount * 100) if budget.limit_amount else 0)
+    period_key = datetime.now(UTC).strftime("%Y-%m")
+    created: list[dict[str, object]] = []
+    for threshold in budget.warning_thresholds or []:
+        if percent < int(threshold):
+            continue
+        exists = await session.scalar(
+            select(BudgetAlert).where(
+                BudgetAlert.budget_id == budget.id,
+                BudgetAlert.period_key == period_key,
+                BudgetAlert.threshold_percent == int(threshold),
+            )
+        )
+        if exists:
+            continue
+        alert = BudgetAlert(
+            department_id=department_id,
+            budget_id=budget.id,
+            period_key=period_key,
+            threshold_percent=int(threshold),
+            amount=spent,
+        )
+        session.add(alert)
+        created.append(
+            {"threshold_percent": int(threshold), "amount": str(spent), "currency": budget.currency}
+        )
+    await session.commit()
+    return {
+        "data": {
+            "percent": percent,
+            "spent": str(spent),
+            "currency": budget.currency,
+            "alerts": created,
+        }
+    }

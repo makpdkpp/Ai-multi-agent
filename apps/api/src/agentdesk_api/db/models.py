@@ -155,11 +155,28 @@ class LlmModel(Base):
     pricing_versions: Mapped[list[ModelPricingVersion]] = relationship(back_populates="model")
 
 
+class DepartmentLlmModelGrant(Base):
+    __tablename__ = "department_llm_model_grants"
+    __table_args__ = (
+        UniqueConstraint("department_id", "model_id", name="uq_department_llm_model"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    department_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("departments.id", ondelete="CASCADE")
+    )
+    model_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("llm_models.id", ondelete="CASCADE"))
+    status: Mapped[str] = mapped_column(String(20), default="active")
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    model: Mapped[LlmModel] = relationship()
+
+
 class Agent(TimestampMixin, Base):
     __tablename__ = "agents"
-    __table_args__ = (
-        UniqueConstraint("department_id", "slug", name="uq_agents_department_slug"),
-    )
+    __table_args__ = (UniqueConstraint("department_id", "slug", name="uq_agents_department_slug"),)
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     department_id: Mapped[uuid.UUID] = mapped_column(
@@ -239,6 +256,8 @@ class AgentLlmConfig(TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(20), default="active")
 
     agent: Mapped[Agent] = relationship(back_populates="llm_configs")
+    provider: Mapped[LlmProvider | None] = relationship()
+    model: Mapped[LlmModel | None] = relationship()
 
 
 class DataSource(TimestampMixin, Base):
@@ -288,6 +307,25 @@ class SourceFile(Base):
     data_source: Mapped[DataSource] = relationship(back_populates="files")
 
 
+class SourceChunk(Base):
+    __tablename__ = "source_chunks"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    department_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("departments.id", ondelete="CASCADE")
+    )
+    data_source_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("data_sources.id", ondelete="CASCADE")
+    )
+    source_file_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("source_files.id", ondelete="CASCADE")
+    )
+    chunk_index: Mapped[int] = mapped_column(Integer())
+    content: Mapped[str] = mapped_column(Text())
+    chunk_metadata: Mapped[dict[str, object]] = mapped_column("metadata", JSONB(), default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class AgentDataSource(Base):
     __tablename__ = "agent_data_sources"
     __table_args__ = (
@@ -309,6 +347,54 @@ class AgentDataSource(Base):
 
     agent: Mapped[Agent] = relationship(back_populates="data_source_links")
     data_source: Mapped[DataSource] = relationship(back_populates="agent_links")
+
+
+class HandoffCase(TimestampMixin, Base):
+    __tablename__ = "handoff_cases"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    department_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("departments.id", ondelete="CASCADE")
+    )
+    agent_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("agents.id", ondelete="CASCADE"))
+    conversation_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("chat_conversations.id", ondelete="CASCADE")
+    )
+    requester_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    requester_contact: Mapped[str | None] = mapped_column(String(255))
+    status: Mapped[str] = mapped_column(String(20), default="open")
+    priority: Mapped[str] = mapped_column(String(20), default="normal")
+    subject: Mapped[str | None] = mapped_column(String(255))
+    reason: Mapped[str | None] = mapped_column(Text())
+    assigned_to: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    sla_due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class HandoffCaseMessage(Base):
+    __tablename__ = "handoff_case_messages"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    case_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("handoff_cases.id", ondelete="CASCADE"))
+    sender_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    sender_type: Mapped[str] = mapped_column(String(20))
+    content: Mapped[str] = mapped_column(Text())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class WidgetSession(Base):
+    __tablename__ = "widget_sessions"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    department_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("departments.id", ondelete="CASCADE")
+    )
+    agent_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("agents.id", ondelete="CASCADE"))
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    origin: Mapped[str | None] = mapped_column(String(255))
+    contact: Mapped[str | None] = mapped_column(String(255))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class ChatConversation(TimestampMixin, Base):
@@ -391,6 +477,29 @@ class DepartmentBudget(TimestampMixin, Base):
     action_on_exceed: Mapped[str] = mapped_column(String(30), default="notify_only")
     warning_thresholds: Mapped[list[int]] = mapped_column(JSONB(), default=lambda: [70, 90, 100])
     enabled: Mapped[bool] = mapped_column(Boolean(), default=True)
+
+
+class BudgetAlert(Base):
+    __tablename__ = "budget_alerts"
+    __table_args__ = (
+        UniqueConstraint(
+            "budget_id", "period_key", "threshold_percent", name="uq_budget_alert_threshold"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    department_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("departments.id", ondelete="CASCADE")
+    )
+    budget_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("department_budgets.id", ondelete="CASCADE")
+    )
+    period_key: Mapped[str] = mapped_column(String(30))
+    threshold_percent: Mapped[int] = mapped_column(Integer())
+    amount: Mapped[Decimal] = mapped_column(Numeric(20, 8))
+    notified_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
 
 class LlmUsageEvent(Base):

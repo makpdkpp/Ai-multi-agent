@@ -12,6 +12,7 @@ type OpenRouterStatus = {
   app_title: string;
   secret_source: string;
 };
+type Department = { id: string; name: string };
 const apiUrl = process.env.API_INTERNAL_URL ?? "http://localhost:8000/api/v1";
 
 async function apiFetch(path: string) {
@@ -25,16 +26,22 @@ async function apiFetch(path: string) {
 async function loadPage(): Promise<{
   user: CurrentUser;
   openrouter: OpenRouterStatus;
+  departments: Department[];
 } | null> {
-  const [meResponse, statusResponse] = await Promise.all([
+  const [meResponse, statusResponse, departmentsResponse] = await Promise.all([
     apiFetch("/me"),
     apiFetch("/system/openrouter/status"),
+    apiFetch("/departments"),
   ]);
   if (meResponse.status === 401) return null;
   const user = (await meResponse.json()).data as CurrentUser;
   if (user.system_role !== "super_admin") redirect("/");
   if (!statusResponse.ok) throw new Error("Unable to load OpenRouter status");
-  return { user, openrouter: (await statusResponse.json()).data as OpenRouterStatus };
+  return {
+    user,
+    openrouter: (await statusResponse.json()).data as OpenRouterStatus,
+    departments: departmentsResponse.ok ? (await departmentsResponse.json()).data as Department[] : [],
+  };
 }
 
 export default async function OpenRouterSettingsPage() {
@@ -66,7 +73,7 @@ export default async function OpenRouterSettingsPage() {
           <div className="topbarActions"><span className="environment">Local Pilot</span><LogoutButton /></div>
         </header>
         <div className="page">
-          <OpenRouterSettings status={data.openrouter} />
+          <OpenRouterSettings status={data.openrouter} departments={data.departments} />
         </div>
       </section>
     </main>

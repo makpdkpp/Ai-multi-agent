@@ -53,8 +53,10 @@ def normalized_email(email: str) -> str:
         raise ValueError("Enter a valid email address")
 
     labels = domain.split(".")
-    if not domain or len(domain) > 253 or any(
-        not _domain_label_pattern.fullmatch(label) for label in labels
+    if (
+        not domain
+        or len(domain) > 253
+        or any(not _domain_label_pattern.fullmatch(label) for label in labels)
     ):
         raise ValueError("Enter a valid email address")
     return normalized

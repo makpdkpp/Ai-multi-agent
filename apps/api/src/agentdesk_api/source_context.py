@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from agentdesk_api.config import Settings
-from agentdesk_api.db.models import Agent, AgentDataSource, DataSource, SourceFile
+from agentdesk_api.db.models import Agent, AgentDataSource, DataSource, SourceChunk, SourceFile
 
 MAX_CONTEXT_CHARS = 18000
 MAX_ROWS_PER_SHEET = 80
@@ -75,8 +75,7 @@ def _format_rows(headers: list[str], rows: list[list[Any]]) -> str:
     lines.append("| " + " | ".join("---" for _ in headers) + " |")
     for row in rows[:MAX_ROWS_PER_SHEET]:
         values = [
-            _cell_text(row[index]) if index < len(row) else ""
-            for index in range(len(headers))
+            _cell_text(row[index]) if index < len(row) else "" for index in range(len(headers))
         ]
         lines.append("| " + " | ".join(value.replace("|", "\\|") for value in values) + " |")
     return "\n".join(lines)
@@ -166,6 +165,7 @@ async def build_agent_data_source_context(
     session: AsyncSession,
     settings: Settings,
     agent: Agent,
+    query: str | None = None,
 ) -> str:
     result = await session.execute(
         select(AgentDataSource)
@@ -188,6 +188,24 @@ async def build_agent_data_source_context(
         source_file = _latest_ready_file(source)
         if source_file is None:
             continue
+        if query:
+            terms = [term.strip().lower() for term in query.split() if len(term.strip()) >= 2][:8]
+            if terms:
+                conditions = [SourceChunk.content.ilike(f"%{term}%") for term in terms]
+                chunk_result = await session.execute(
+                    select(SourceChunk)
+                    .where(SourceChunk.data_source_id == source.id, *conditions)
+                    .order_by(SourceChunk.chunk_index)
+                    .limit(MAX_ROWS_PER_SHEET * 5)
+                )
+                chunks = list(chunk_result.scalars().all())
+                if chunks:
+                    blocks.append(
+                        f"### Source: {source.name}\n"
+                        f"- Indexed retrieval from {source_file.original_name}\n"
+                        + "\n".join(chunk.content for chunk in chunks)
+                    )
+                    continue
         try:
             client = client or _s3_client(settings)
             response = client.get_object(Bucket=settings.s3_bucket, Key=source_file.object_key)

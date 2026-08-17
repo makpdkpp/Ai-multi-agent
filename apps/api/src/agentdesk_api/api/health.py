@@ -51,4 +51,3 @@ async def readiness(response: Response) -> dict[str, object]:
     if not ready:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     return {"status": "ready" if ready else "not_ready", "checks": states}
-

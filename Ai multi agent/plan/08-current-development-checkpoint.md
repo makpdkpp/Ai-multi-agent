@@ -1,8 +1,8 @@
 # 08 - Current Development Checkpoint
 
-วันที่บันทึก: 2026-08-16  
+วันที่บันทึก: 2026-08-17  
 Branch: `main`  
-Latest pushed commit: `5670bea feat: add excel data sources`  
+Latest pushed commit: `b2d91ee feat: add runtime datetime context to agents`  
 Remote: `origin/main` (`https://github.com/makpdkpp/Ai-multi-agent.git`)
 
 เอกสารนี้ใช้เป็นจุดเริ่มต้นสำหรับกลับมาพัฒนาต่อครั้งหน้า โดยไม่ต้องย้อนอ่านข้อความในแชททั้งหมด
@@ -21,9 +21,9 @@ Services ที่ตรวจล่าสุด:
 - `redis` healthy
 - `minio` healthy
 
-Migration ล่าสุด:
+Migration ล่าสุดที่อยู่ใน working tree:
 
-- `20260816_0010`
+- `20260817_0012` (LLM department grants)
 
 หน้าที่ใช้งานแล้ว:
 
@@ -426,6 +426,110 @@ Frontend:
 
 ## 10. หมายเหตุสำหรับรอบถัดไป
 
+## 11. LLM Profiles และสิทธิ์ Model ต่อแผนก (ล่าสุด)
+
+เพิ่มระบบจัดการ LLM แบบรวมศูนย์สำหรับ Super Admin:
+
+- ใช้ `llm_providers` และ `llm_models` เดิมของระบบ
+- เพิ่ม migration `20260817_0011_llm_department_grants.py`
+- เพิ่ม `department_llm_model_grants` สำหรับกำหนด Model ที่แต่ละแผนกใช้ได้
+- เพิ่ม API ใน `apps/api/src/agentdesk_api/api/llm_profiles.py`
+  - list providers/profiles
+  - create provider/model
+  - grant/revoke model ต่อแผนก
+- Agent ตรวจสิทธิ์ `model_id` ก่อนบันทึก
+- Provider routing ใช้ `base_url` และ `secret_ref` ของ Profile จริง
+- Local Provider (`ollama`, `vllm`, `manual`) ใช้ได้โดยไม่ต้องมี API key จริง
+- ปรับหน้า `/settings/openrouter` เป็น LLM Control Center แบบ 4 ขั้นตอน
+- หน้า Agent แสดง Dropdown เฉพาะ Model ที่แผนกได้รับสิทธิ์
+- API key ยังคงเก็บใน `.env`/environment เท่านั้น
+- เพิ่ม migration `20260817_0012_grant_llm_department_table.py` เพื่อ grant สิทธิ์ app user ให้ตารางสิทธิ์ Model
+
+การทดสอบล่าสุด:
+
+```powershell
+docker run --rm -v "C:\laragon\www\Ai-multi-agent\apps\api:/app" -w /app agentdesk-api-test ruff check .
+docker run --rm -v "C:\laragon\www\Ai-multi-agent\apps\api:/app" -w /app agentdesk-api-test pytest -q
+cd apps/web; npm run lint
+docker compose up -d --build api web
+```
+
+ผลล่าสุด: API tests 34 รายการผ่าน, API/Web build ผ่าน, services healthy
+
+## 12. Internal Chat: แก้ 500 จาก stale database connection (ล่าสุด)
+
+- สาเหตุที่พบจาก API log คือ `asyncpg.exceptions.InterfaceError: cannot call PreparedStatement.fetch(): the underlying connection is closed`
+- สาเหตุเกิดจากเก็บ database connection ไว้ระหว่างรอ LLM provider ภายนอกตอบกลับ ทำให้ connection หมดอายุ/ถูกปิดก่อนบันทึก assistant message
+- แก้ `apps/api/src/agentdesk_api/api/chat.py` ให้ commit ข้อความผู้ใช้ก่อนเรียก LLM และคืน connection ให้ pool
+- หลัง commit จะตั้งค่า department/RLS context ใหม่ก่อนเขียน assistant message
+- ตรวจสอบด้วย `ruff check .` และ `pytest -q`: ผ่านทั้งหมด 34 tests
+- Rebuild และ restart `api` สำเร็จ; container เริ่มทำงานและ Uvicorn startup complete แล้ว
+
+### Local LM troubleshooting ล่าสุด
+
+- ตรวจ provider `localllm`: Base URL คือ `http://host.docker.internal:1234/v1`
+- ทดสอบจาก API container แล้วเชื่อมต่อปลายทางไม่ได้ และจาก Windows `localhost:1234` ถูกปฏิเสธการเชื่อมต่อ
+- ปรับ error handling ให้แจ้ง Base URL และสาเหตุการเชื่อมต่อ Local LM โดยตรง แทนข้อความ 502 แบบกว้าง ๆ
+- ต้องเปิด LM Studio Local Server ที่ port `1234` และใช้ Model key ให้ตรงกับ `/v1/models`
+- พบว่า LM Studio ใช้ API key; เพิ่มการส่ง `STLM_API_KEY` และ `STUDIOLM_API_KEY` จาก `.env` เข้า API container ใน `compose.yaml`
+- ทดสอบจาก API container ด้วย `STLM_API_KEY` แล้ว `GET /v1/models` ได้ `200` และพบ model `google/gemma-4-e4b`
+- พบ Local LM ตอบ `content` ว่างพร้อม `reasoning_content` และ `finish_reason=length` เมื่อ prompt จาก Excel ใช้ context เกือบเต็ม 8K; ควรเพิ่ม Context Length ของ model ใน LM Studio อย่างน้อย 16K (แนะนำ 32K)
+- เพิ่ม guard ใน chat/agent API เพื่อแจ้งสาเหตุ context เต็มแทนการบันทึกข้อความว่าง (ต้อง rebuild API ก่อนใช้งาน guard นี้)
+- แก้การส่งข้อความซ้ำใน conversation เดิม: history จะข้าม assistant/user message ที่มี content ว่าง ป้องกัน `AgentInvokeMessage` validation 500
+- รอบ rebuild ล่าสุดติดข้อจำกัดชั่วคราวจาก Docker Desktop resolve `registry-1.docker.io` ไม่ได้; source code แก้แล้ว แต่ต้อง `docker compose up -d --build api` เมื่อ Docker network กลับมา
+
+สิ่งที่ยังไม่รวมในรอบนี้:
+
+- Fallback ไปยัง Model อื่นเมื่อ Provider ล้มเหลว (ปัจจุบันมี retry 429/5xx)
+- Audit log การเปลี่ยนสิทธิ์ Model
+- PDF/MySQL connector และ Human Handoff
+
+## 13. Production Backlog: Multi-Excel Data Join / Query Engine
+
+ปัจจุบัน Agent รองรับการผูก Excel หลายชุดและส่งข้อมูลรวมให้ LLM วิเคราะห์ แต่ยังเป็นการประกอบข้อมูลใน prompt ไม่ใช่การ Join แบบฐานข้อมูล จึงเหมาะสำหรับ MVP/ข้อมูลขนาดเล็กเท่านั้น
+
+ข้อจำกัดปัจจุบัน:
+
+- จำกัดแหล่งข้อมูลที่แนบต่อ Agent ประมาณ 5 แหล่ง
+- อ่านข้อมูลตัวอย่างต่อ Sheet ตาม row limit ที่กำหนด
+- Context รวมถูกจำกัดและอาจถูกตัดเมื่อไฟล์มีข้อมูลมาก
+- ยังไม่มีการกำหนด Primary Key/Foreign Key ระหว่างไฟล์
+- ยังไม่มีการ Join, aggregate หรือคำนวณแบบ deterministic ก่อนส่งให้ AI
+- ยังไม่มีการอ้างอิงแถว/เซลล์ต้นทางในคำตอบอย่างเป็นระบบ
+
+งานที่ต้องพัฒนาก่อน Production:
+
+1. สร้าง ingestion pipeline แปลง Excel เป็นตารางกลาง/โครงสร้างที่ค้นหาได้
+2. ให้ Admin กำหนด schema, column mapping และความสัมพันธ์ระหว่าง Dataset
+3. รองรับ Primary Key/Foreign Key เช่น `project_id`, `contract_id`, `customer_id`
+4. พัฒนา Query/Join Engine สำหรับ filter, join, sort, aggregate และ date calculation
+5. ใช้ retrieval เลือกเฉพาะแถวที่เกี่ยวข้องแทนการส่งทั้งไฟล์เข้า prompt
+6. เพิ่ม validation กรณี key ซ้ำ, ข้อมูลไม่ครบ และชนิดข้อมูลไม่ตรงกัน
+7. แสดง provenance ว่าคำตอบมาจาก Dataset, Sheet, row หรือช่วงข้อมูลใด
+8. เพิ่มสิทธิ์การเข้าถึงแยกตามแผนกและ audit log การใช้งาน Dataset
+9. ทำชุดทดสอบ multi-file question เช่น project + contract + customer และตรวจความถูกต้องเทียบผลลัพธ์จากฐานข้อมูล
+
+เกณฑ์พร้อม Production: คำถามที่ต้องประกอบข้อมูลหลาย Excel ต้องได้ผลลัพธ์จาก Query/Join Engine ก่อน แล้วจึงให้ AI เรียบเรียงคำตอบ พร้อมแสดงแหล่งที่มาของข้อมูลทุกครั้ง
+
+## 14. Production Foundation รอบล่าสุด
+
+- เพิ่ม migration `20260817_0013_production_foundation.py`
+- เพิ่ม `source_chunks` สำหรับเก็บ row-level Excel index และ keyword retrieval
+- Upload Excel จะสร้าง row chunks สูงสุด 5,000 แถวต่อไฟล์
+- Chat/Agent invoke จะค้น chunk ตามคำถามก่อน และ fallback ไป context preview เดิม
+- เพิ่ม `handoff_cases` และ `handoff_case_messages` พร้อม API list/create/update/reply ใต้ `/api/v1/handoff`
+- เพิ่ม `budget_alerts` และ endpoint ตรวจ threshold แบบ idempotent ที่ `/api/v1/departments/{id}/budget/check`
+- เพิ่ม RLS และ app-role grants ให้ตารางใหม่
+- `ruff check .` ผ่าน และ regression tests 34 รายการผ่าน
+
+งานที่ยังต้องทำต่อจาก foundation นี้:
+
+- Public Widget session/token API, embed script และ anonymous chat endpoint
+- Human Handoff frontend Inbox, SLA schedule, email notification และ AI draft
+- PDF/MySQL connectors และ retrieval ที่รองรับ source citation แบบเต็ม
+- Budget notification delivery (email/in-app) และ scheduler/worker
+- Security/load/penetration test suite และ CI gate
+
 ก่อนเริ่มทำต่อ ให้ทำตามนี้:
 
 ```powershell
@@ -448,4 +552,3 @@ docker compose up -d --build api web
 ```
 
 จากนั้นเริ่มงานถัดไปจากหัวข้อ `8. งานถัดไปที่แนะนำ`
-
